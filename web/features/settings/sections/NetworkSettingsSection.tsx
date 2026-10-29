@@ -23,6 +23,7 @@ type NetworkSettings = {
   frontend_port: number;
   public_api_base: string;
   cors_origins: string[];
+  codex_proxy_url: string;
 };
 
 type NetworkSettingsPayload = {
@@ -58,6 +59,7 @@ function normalizeDraft(payload: NetworkSettingsPayload): NetworkSettings {
     frontend_port: payload.settings.frontend_port,
     public_api_base: payload.settings.public_api_base || "",
     cors_origins: payload.settings.cors_origins || [],
+    codex_proxy_url: payload.settings.codex_proxy_url || "",
   };
 }
 
@@ -98,6 +100,7 @@ export default function NetworkSettingsPage() {
   const { registerExtension, pendingExtensionPayload, draftRevision } =
     useSettings();
   const apiBasePlaceholder = "https://api.example.com";
+  const proxyPlaceholder = "http://127.0.0.1:7890";
   const corsPlaceholder = "https://learn.example.com\nhttp://10.0.0.5:3782";
   const [payload, setPayload] = useState<NetworkSettingsPayload | null>(null);
   const [draft, setDraft] = useState<NetworkSettings | null>(null);
@@ -150,6 +153,7 @@ export default function NetworkSettingsPage() {
       current.backend_port !== draft.backend_port ||
       current.frontend_port !== draft.frontend_port ||
       current.public_api_base !== draft.public_api_base ||
+      current.codex_proxy_url !== (draft.codex_proxy_url || "") ||
       JSON.stringify(current.cors_origins) !==
         JSON.stringify(splitOrigins(corsText))
     );
@@ -286,6 +290,27 @@ export default function NetworkSettingsPage() {
               tone="warn"
             />
           </div>
+
+          <SettingSection
+            title={t("Codex network proxy")}
+            description={t("Use your local proxy for Codex sign-in, token refresh, model discovery and chat. The browser and local callback keep their own network settings. Apply changes and restart DeepTutor.")}
+          >
+            <SettingRow
+              title={t("Proxy URL")}
+              description={t("Supports HTTP, HTTPS and SOCKS5 without a username or password. Leave blank to use the server environment settings.")}
+              control={
+                <input
+                  aria-label={t("Proxy URL")}
+                  className={`${inputClass} w-[360px] max-w-[48vw]`}
+                  placeholder={proxyPlaceholder}
+                  value={draft.codex_proxy_url || ""}
+                  onChange={(event) => setDraft((current) => current
+                    ? { ...current, codex_proxy_url: event.target.value }
+                    : current)}
+                />
+              }
+            />
+          </SettingSection>
 
           <SettingSection
             title={t("Runtime ports")}

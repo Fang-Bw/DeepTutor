@@ -18,7 +18,9 @@ from typing import Any, List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from deeptutor.services.config.network_proxy import normalize_codex_proxy
 
 logger = logging.getLogger(__name__)
 
@@ -362,6 +364,12 @@ class NetworkSettingsUpdate(BaseModel):
     frontend_port: int = Field(ge=1, le=65535)
     public_api_base: str = ""
     cors_origins: list[str] = Field(default_factory=list)
+    codex_proxy_url: str = ""
+
+    @field_validator("codex_proxy_url")
+    @classmethod
+    def validate_codex_proxy(cls, value: str) -> str:
+        return normalize_codex_proxy(value)
 
 
 class ChatAttachmentSettingsUpdate(BaseModel):
@@ -896,6 +904,7 @@ def _network_settings_payload() -> dict[str, Any]:
             "backend_port": file_system["backend_port"],
             "frontend_port": file_system["frontend_port"],
             "public_api_base": file_system["next_public_api_base_external"],
+            "codex_proxy_url": file_system["codex_proxy_url"],
             "cors_origins": normalize_origins(
                 [file_system["cors_origin"], file_system["cors_origins"]]
             ),
@@ -1075,6 +1084,7 @@ async def update_network_settings(payload: NetworkSettingsUpdate):
             "backend_port": payload.backend_port,
             "frontend_port": payload.frontend_port,
             "next_public_api_base_external": payload.public_api_base.strip(),
+            "codex_proxy_url": payload.codex_proxy_url,
             "cors_origin": "",
             "cors_origins": normalize_origins(payload.cors_origins),
         }

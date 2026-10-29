@@ -14196,6 +14196,11 @@ export interface components {
     readonly NetworkSettingsUpdate: {
       /** Backend Port */
       readonly backend_port: number;
+      /**
+       * Codex Proxy Url
+       * @default
+       */
+      readonly codex_proxy_url: string;
       /** Cors Origins */
       readonly cors_origins?: readonly string[];
       /** Frontend Port */

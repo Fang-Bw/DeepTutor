@@ -1,4 +1,8 @@
 {
+  "Codex network proxy": "Codex network proxy",
+  "Proxy URL": "Proxy URL",
+  "Use your local proxy for Codex sign-in, token refresh, model discovery and chat. The browser and local callback keep their own network settings. Apply changes and restart DeepTutor.": "Use your local proxy for Codex sign-in, token refresh, model discovery and chat. The browser and local callback keep their own network settings. Apply changes and restart DeepTutor.",
+  "Supports HTTP, HTTPS and SOCKS5 without a username or password. Leave blank to use the server environment settings.": "Supports HTTP, HTTPS and SOCKS5 without a username or password. Leave blank to use the server environment settings.",
   "Partially correct": "Partially correct",
   "These answers could not be submitted. Please review or retry.": "These answers could not be submitted. Please review or retry.",
   "The edit could not be sent. Your draft is still here; please retry.": "The edit could not be sent. Your draft is still here; please retry.",

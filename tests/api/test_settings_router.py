@@ -366,11 +366,14 @@ async def test_network_settings_roundtrip_normalizes_cors_origins(
         frontend_port=3882,
         public_api_base="https://api.example.com/deeptutor",
         cors_origins=["app.example.com; https://learn.example.com/path"],
+        codex_proxy_url=" http://127.0.0.1:7890/ ",
     )
 
     response = await settings_router.update_network_settings(payload)
 
     assert response["settings"]["backend_port"] == 8101
+    assert response["settings"]["codex_proxy_url"] == "http://127.0.0.1:7890"
+    assert service.load_system()["codex_proxy_url"] == "http://127.0.0.1:7890"
     assert response["settings"]["public_api_base"] == "https://api.example.com/deeptutor"
     assert response["settings"]["cors_origins"] == [
         "http://app.example.com",

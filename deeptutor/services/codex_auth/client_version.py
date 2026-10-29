@@ -14,6 +14,7 @@ from .constants import (
     CODEX_STABLE_VERSION_PATTERN,
     CODEX_VERSION_TIMEOUT_SECONDS,
 )
+from .network import codex_proxy_options
 
 
 async def latest_client_version(http: httpx.AsyncClient | None = None) -> str | None:
@@ -24,7 +25,9 @@ async def latest_client_version(http: httpx.AsyncClient | None = None) -> str | 
     The deadline bounds the entire exchange, including streamed response bytes.
     """
     if http is None:
-        async with httpx.AsyncClient(timeout=CODEX_VERSION_TIMEOUT_SECONDS) as client:
+        async with httpx.AsyncClient(
+            timeout=CODEX_VERSION_TIMEOUT_SECONDS, **codex_proxy_options()
+        ) as client:
             return await latest_client_version(client)
     try:
         async with asyncio.timeout(CODEX_VERSION_TIMEOUT_SECONDS):

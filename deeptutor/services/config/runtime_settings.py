@@ -11,6 +11,7 @@ from deeptutor.services.file_io import atomic_write_json as _atomic_write_json
 from deeptutor.services.path_service import get_path_service
 
 from .image_description import normalize_image_description_model
+from .network_proxy import normalize_codex_proxy
 from .origins import normalize_origins
 
 DEFAULT_SYSTEM_SETTINGS: dict[str, Any] = {
@@ -23,6 +24,7 @@ DEFAULT_SYSTEM_SETTINGS: dict[str, Any] = {
     "backend_port": 8001,
     "backend_workers": 1,
     "frontend_port": 3782,
+    "codex_proxy_url": "",
     "next_public_api_base_external": "",
     "next_public_api_base": "",
     "cors_origin": "",
@@ -1373,6 +1375,7 @@ class RuntimeSettingsService:
             "backend_port": _coerce_port(settings.get("backend_port"), 8001),
             "backend_workers": _coerce_clamped_int(settings.get("backend_workers"), 1, 1, 64),
             "frontend_port": _coerce_port(settings.get("frontend_port"), 3782),
+            "codex_proxy_url": normalize_codex_proxy(_string(settings.get("codex_proxy_url"))),
             "next_public_api_base_external": public_api_base,
             "next_public_api_base": _string(settings.get("next_public_api_base")),
             "cors_origin": _string(settings.get("cors_origin")),

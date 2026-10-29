@@ -1,4 +1,8 @@
 {
+  "Codex network proxy": "Мережевий проксі Codex",
+  "Proxy URL": "URL проксі",
+  "Use your local proxy for Codex sign-in, token refresh, model discovery and chat. The browser and local callback keep their own network settings. Apply changes and restart DeepTutor.": "Використовуйте локальний проксі для входу в Codex, оновлення токенів, пошуку моделей і чату. Браузер і локальний зворотний виклик зберігають власні мережеві налаштування. Застосуйте зміни та перезапустіть DeepTutor.",
+  "Supports HTTP, HTTPS and SOCKS5 without a username or password. Leave blank to use the server environment settings.": "Підтримує HTTP, HTTPS і SOCKS5 без імені користувача та пароля. Залиште порожнім, щоб використовувати налаштування середовища сервера.",
   "Partially correct": "Частково правильно",
   "These answers could not be submitted. Please review or retry.": "Не вдалося надіслати ці відповіді. Перевірте їх або спробуйте ще раз.",
   "The edit could not be sent. Your draft is still here; please retry.": "Не вдалося надіслати зміни. Чернетку збережено; спробуйте ще раз.",

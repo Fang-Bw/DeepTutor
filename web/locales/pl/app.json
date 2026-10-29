@@ -1,4 +1,8 @@
 {
+  "Codex network proxy": "Serwer proxy dla Codex",
+  "Proxy URL": "Adres URL serwera proxy",
+  "Use your local proxy for Codex sign-in, token refresh, model discovery and chat. The browser and local callback keep their own network settings. Apply changes and restart DeepTutor.": "Używaj lokalnego serwera proxy do logowania Codex, odświeżania tokenów, wyszukiwania modeli i czatu. Przeglądarka i lokalne wywołanie zwrotne zachowują własne ustawienia sieciowe. Zastosuj zmiany i uruchom ponownie DeepTutor.",
+  "Supports HTTP, HTTPS and SOCKS5 without a username or password. Leave blank to use the server environment settings.": "Obsługuje HTTP, HTTPS i SOCKS5 bez nazwy użytkownika i hasła. Pozostaw puste, aby użyć ustawień środowiska serwera.",
   "Partially correct": "Częściowo poprawna odpowiedź",
   "These answers could not be submitted. Please review or retry.": "Nie udało się przesłać tych odpowiedzi. Sprawdź je lub spróbuj ponownie.",
   "The edit could not be sent. Your draft is still here; please retry.": "Nie udało się wysłać zmiany. Szkic został zachowany; spróbuj ponownie.",

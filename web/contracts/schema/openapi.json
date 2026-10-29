@@ -6615,6 +6615,11 @@
             "title": "Backend Port",
             "type": "integer"
           },
+          "codex_proxy_url": {
+            "default": "",
+            "title": "Codex Proxy Url",
+            "type": "string"
+          },
           "cors_origins": {
             "items": {
               "type": "string"

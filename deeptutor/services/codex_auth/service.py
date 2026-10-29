@@ -36,6 +36,7 @@ from .contracts import (
     decode_codex_jwt,
     normalize_codex_reasoning_levels,
 )
+from .network import codex_proxy_options
 from .oauth import (
     CodexOAuthClient,
     LoopbackCallback,
@@ -447,7 +448,7 @@ class CodexOAuthService:
         self._callback_forward_port = callback_forward_port
         self._owned_http: httpx.AsyncClient | None = None
         if oauth_client is None:
-            self._owned_http = httpx.AsyncClient(timeout=30)
+            self._owned_http = httpx.AsyncClient(timeout=30, **codex_proxy_options())
             oauth_client = CodexOAuthClient(self._owned_http)
         self._oauth = oauth_client
         self._callback_factory = callback_factory or self._start_default_callback
@@ -1284,7 +1285,7 @@ def get_codex_oauth_service() -> CodexOAuthService:
     if service is None:
         callback_forward_port = load_system_settings()["frontend_port"]
         store = CodexCredentialStore(secrets_root)
-        http = httpx.AsyncClient(timeout=30)
+        http = httpx.AsyncClient(timeout=30, **codex_proxy_options())
         catalog = CodexModelCatalog(store, http=http)
         service = CodexOAuthService(
             store,
