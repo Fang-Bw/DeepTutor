@@ -36,6 +36,7 @@ from .contracts import (
     decode_codex_jwt,
     normalize_codex_reasoning_levels,
 )
+from .http_pool import CodexHTTPPool, use_codex_http_pool
 from .network import codex_proxy_options
 from .oauth import (
     CodexOAuthClient,
@@ -433,6 +434,7 @@ class CodexOAuthService:
         *,
         oauth_client: CodexOAuthClient | None = None,
         owned_http: httpx.AsyncClient | None = None,
+        http_pool: CodexHTTPPool | None = None,
         callback_factory: Callable[[str], Awaitable[Any]] | None = None,
         clock: Callable[[], float] = time.time,
         callback_forward_port: int = 3782,
@@ -448,6 +450,7 @@ class CodexOAuthService:
         self._model_catalog = model_catalog
         self._callback_forward_port = callback_forward_port
         self._owned_http = owned_http
+        self._http_pool = http_pool
         if oauth_client is None:
             self._owned_http = owned_http or httpx.AsyncClient(timeout=30, **codex_proxy_options())
             oauth_client = CodexOAuthClient(self._owned_http)
@@ -484,6 +487,8 @@ class CodexOAuthService:
             client, self._owned_http = self._owned_http, None
             if client is not None:
                 await client.aclose()
+            if self._http_pool is not None:
+                await self._http_pool.aclose()
 
     @staticmethod
     async def _start_default_callback(expected_state: str) -> LoopbackCallback:
@@ -867,7 +872,8 @@ class CodexOAuthService:
                 )
             self._active_inferences += 1
         try:
-            yield
+            with use_codex_http_pool(self._http_pool):
+                yield
         finally:
             async with self._inference_lock:
                 self._active_inferences -= 1
@@ -1308,14 +1314,14 @@ def get_codex_oauth_service() -> CodexOAuthService:
     if service is None:
         callback_forward_port = load_system_settings()["frontend_port"]
         store = CodexCredentialStore(secrets_root)
-        http = httpx.AsyncClient(timeout=30, **codex_proxy_options())
+        http = CodexHTTPPool()
         catalog = CodexModelCatalog(store, http=http)
         service = CodexOAuthService(
             store,
             catalog,
             _owner_model_catalog_service(),
             oauth_client=CodexOAuthClient(http),
-            owned_http=http,
+            http_pool=http,
             callback_forward_port=callback_forward_port,
         )
         _SERVICE_INSTANCES[key] = service

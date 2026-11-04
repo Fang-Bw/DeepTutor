@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from deeptutor.core.turn_state import ACTIVE_TURN_STATUSES
 from deeptutor.services.session.protocol import TurnRepository
 
 from .protocol import RuntimeCoordinator
@@ -46,11 +47,7 @@ class TurnRecoveryService:
         turn = await self.repository.get_turn(turn_id)
         if turn is None:
             return None
-        if turn.get("status") not in {
-            TurnStatus.QUEUED.value,
-            TurnStatus.RUNNING.value,
-            TurnStatus.WAITING_INPUT.value,
-        }:
+        if turn.get("status") not in ACTIVE_TURN_STATUSES:
             return False
         await self.coordinator.publish_event(
             turn_id,

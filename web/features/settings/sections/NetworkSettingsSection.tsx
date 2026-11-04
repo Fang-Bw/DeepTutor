@@ -216,7 +216,7 @@ export default function NetworkSettingsPage() {
       />
 
       <p className="mb-7 text-[12px] text-[var(--muted-foreground)]">
-        {t("Network changes take effect after restart.")}
+        {t("codex.network.restartHint")}
       </p>
 
       <div className="mb-7">
@@ -284,14 +284,14 @@ export default function NetworkSettingsPage() {
             />
             <DetailTile
               label={t("Restart")}
-              value={t("Required after save")}
+              value={t("codex.network.restartScope")}
               tone="warn"
             />
           </div>
 
           <SettingSection
             title={t("Codex network proxy")}
-            description={t("Use your local proxy for Codex sign-in, token refresh, model discovery and chat. The browser and local callback keep their own network settings. Apply changes and restart DeepTutor.")}
+            description={t("codex.network.proxyApplyHint")}
           >
             <SettingRow
               title={t("Proxy URL")}

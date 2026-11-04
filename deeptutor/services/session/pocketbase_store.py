@@ -26,6 +26,12 @@ import time
 from typing import Any
 import uuid
 
+from deeptutor.core.turn_state import (
+    ACTIVE_TURN_STATUSES,
+    ALL_TURN_STATUSES,
+    TERMINAL_TURN_STATUSES,
+    can_transition_turn,
+)
 from deeptutor.services.session.protocol import ActiveTurnConflict
 from deeptutor.services.workspace.context import current_workspace_id
 
@@ -39,9 +45,6 @@ from .workspace_preferences import upgrade_workspace_preferences
 logger = logging.getLogger(__name__)
 
 _VALID_ID = re.compile(r"^[a-zA-Z0-9_-]+$")
-_ACTIVE_TURN_STATUSES = frozenset({"queued", "running", "waiting_input"})
-_TERMINAL_TURN_STATUSES = frozenset({"completed", "failed", "cancelled"})
-_ALL_TURN_STATUSES = _ACTIVE_TURN_STATUSES | _TERMINAL_TURN_STATUSES
 # The deployed PocketBase messages collection has no parent column. Keep the
 # link inside its JSON metadata until the collection schema can be upgraded.
 _PARENT_MESSAGE_METADATA_KEY = "_parent_message_id"
@@ -1276,7 +1279,7 @@ class PocketBaseSessionStore:
             active = [
                 record
                 for record in session_turns
-                if getattr(record, "status", "") in _ACTIVE_TURN_STATUSES
+                if getattr(record, "status", "") in ACTIVE_TURN_STATUSES
             ]
             if active:
                 raise ActiveTurnConflict(
@@ -1362,7 +1365,7 @@ class PocketBaseSessionStore:
             active = [
                 record
                 for record in records
-                if getattr(record, "status", "") in _ACTIVE_TURN_STATUSES
+                if getattr(record, "status", "") in ACTIVE_TURN_STATUSES
             ]
             active.sort(key=lambda record: getattr(record, "turn_updated_at", 0), reverse=True)
             return active[0] if active else None
@@ -1387,7 +1390,7 @@ class PocketBaseSessionStore:
             active = [
                 record
                 for record in records
-                if getattr(record, "status", "") in _ACTIVE_TURN_STATUSES
+                if getattr(record, "status", "") in ACTIVE_TURN_STATUSES
             ]
             active.sort(key=lambda record: getattr(record, "turn_updated_at", 0), reverse=True)
             return active
@@ -1436,7 +1439,7 @@ class PocketBaseSessionStore:
             return [
                 record
                 for record in records
-                if getattr(record, "status", "") in _ACTIVE_TURN_STATUSES
+                if getattr(record, "status", "") in ACTIVE_TURN_STATUSES
             ]
 
         records = await asyncio.to_thread(_list)
@@ -1458,13 +1461,13 @@ class PocketBaseSessionStore:
         failure_code: str = "",
         retryable: bool = False,
     ) -> bool:
-        if status not in _ALL_TURN_STATUSES:
+        if status not in ALL_TURN_STATUSES:
             raise ValueError(f"Unsupported turn status: {status}")
         if await self.get_turn(turn_id) is None:
             return False
         tid = _validate_id(turn_id, "turn_id")
         now = time.time()
-        finished_at = now if status in _TERMINAL_TURN_STATUSES else None
+        finished_at = now if status in TERMINAL_TURN_STATUSES else None
 
         def _update():
             records = (
@@ -1479,7 +1482,7 @@ class PocketBaseSessionStore:
                 return False
             if fencing_token is not None and current_token != int(fencing_token):
                 return False
-            if current_status in _TERMINAL_TURN_STATUSES and current_status != status:
+            if not can_transition_turn(current_status, status):
                 return False
             _pb().collection("turns").update(
                 record.id,

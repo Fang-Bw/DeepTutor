@@ -1,8 +1,8 @@
 # DeepTutor 状态建模与流转分析
 
-本文分析当前源码中的状态定义、流转控制、持久化和故障恢复，覆盖对话回合、Agent 执行、能力阶段、事件协议、前端展示与学习业务。分析日期为 2026-10-29。
+本文分析当前源码中的状态定义、流转控制、持久化和故障恢复，覆盖对话回合、Agent 执行、能力阶段、事件协议、前端展示与学习业务。初次分析日期为 2026-10-29；2026-11-04 更新了共享回合转换规则及验证边界。
 
-本文是源码静态分析，不是并发压力测试或故障注入报告。文中“改进建议”尚未实现；状态图展示主要业务路径，不表示存储层已经实现了与图完全对应的统一转换表。
+本文以源码分析为依据，不是完整并发压力测试或故障注入报告。回合状态的合法转换已集中声明并由两个存储适配器执行；业务触发条件、运行时协调和跨进程恢复仍由各层实现。文末区分已落地优化和后续建议。
 
 相关文档：[对话请求与 LLM 转接原理](./CHAT_REQUEST_FLOW.md)、[本地运行指南](./RUNNING_LOCALLY.md)。
 
@@ -17,7 +17,7 @@ DeepTutor 使用多层状态协作：
 - **事件协议与前端状态**协调实时显示、重连、去重和回放。
 - **学习业务状态**记录跨多个聊天回合存在的学习进度及答题事务。
 
-它已经具备可取消、可重试、可回放的 Agent 运行机制；状态转换规则仍主要分布在应用服务、执行器、存储和前端条件分支中，尚未统一为通用的工作流状态机。
+它已经具备可取消、可重试、可回放的 Agent 运行机制。回合的状态枚举、活动/终态集合和合法边表由 [core/turn_state.py](../deeptutor/core/turn_state.py) 统一定义；应用服务、执行器和前端仍负责各自的业务触发与展示规则。这是回合生命周期策略，不是通用工作流引擎。
 
 | 层次 | 状态主体 | 主要载体 | 生命周期 |
 | --- | --- | --- | --- |
@@ -34,7 +34,7 @@ DeepTutor 使用多层状态协作：
 
 一个会话包含多个回合。每次发送消息会创建或关联一个回合，回合有自己的标识、执行状态和事件序列。
 
-[TurnStatus 定义](../deeptutor/runtime/coordination/types.py)包含六个值：
+[TurnStatus 定义](../deeptutor/core/turn_state.py)包含六个值；[协调层类型模块](../deeptutor/runtime/coordination/types.py)继续导出同一个枚举，保留原有导入路径：
 
 | 状态 | 含义 | 分类 |
 | --- | --- | --- |
@@ -93,16 +93,33 @@ stateDiagram-v2
 1. 目标状态属于允许的状态集合。
 2. 若提供 `expected_status`，当前状态必须匹配。
 3. 若提供 `fencing_token`，必须与当前持久化凭证匹配。
-4. 当前已是终态时，不能转到其他状态。
+4. 当前状态与目标状态之间的边存在于共享 `TURN_STATUS_TRANSITIONS` 中。
 
-这些检查可以防止部分取消、完成和执行者替换竞争。例如，旧执行者不能使用失效的凭证覆盖新执行者状态。
+状态边表如下，行是当前状态，列是目标状态：
 
-两个边界需要准确理解：
+| 当前 → 目标 | `queued` | `running` | `waiting_input` | `completed` | `failed` | `cancelled` |
+| --- | --- | --- | --- | --- | --- | --- |
+| `queued` | 允许 | 允许 | 拒绝 | 允许 | 允许 | 允许 |
+| `running` | 拒绝 | 允许 | 允许 | 允许 | 允许 | 允许 |
+| `waiting_input` | 拒绝 | 允许 | 允许 | 允许 | 允许 | 允许 |
+| `completed` | 拒绝 | 拒绝 | 拒绝 | 允许 | 拒绝 | 拒绝 |
+| `failed` | 拒绝 | 拒绝 | 拒绝 | 拒绝 | 允许 | 拒绝 |
+| `cancelled` | 拒绝 | 拒绝 | 拒绝 | 拒绝 | 拒绝 | 允许 |
 
-- 这不是完整的合法转换边表。上层仍负责决定何时可以请求某次转换，部分检查参数也允许省略。
+这保留了活动状态到终态的恢复、失败和清理路径，同时阻止执行中的回合退回 `queued`，也不允许 `queued` 跳过执行阶段直接进入 `waiting_input`。普通创建仍直接进入 `running`，没有因此引入新的任务队列。
+
+未知目标状态抛出 `ValueError`；回合不存在、状态边非法或检查参数不匹配时返回 `False`，不修改状态、错误信息、时间戳及版本。旧入口 `update_turn_status` 委托到同一检查路径。
+
+以下边界需要准确理解：
+
+- 边表只定义状态能否转换。是否真的完成任务、回复是否属于当前交互等业务条件，仍由上层验证；`expected_status` 与 `fencing_token` 保留可选接口。
 - 终态不是记录完全不可修改。同一终态仍允许重复写入，更新时间和版本计数可能变化；禁止的是终态跳到另一状态。
+- SQLite 使用 `BEGIN IMMEDIATE` 将读取、条件检查和更新放入同一写事务，防止竞争者在检查后插入另一状态更新。
+- PocketBase 适配器复用同一策略和参数检查，但当前 SDK 路径仍是读取记录后提交更新，尚无服务端原子 compare-and-swap。因此不能将这次统一策略等同于补齐跨进程并发保证；远程事务或条件更新仍是后续工作。
 
 `state_version` 当前承担版本计数，不应单独等同于基于预期版本的完整乐观锁。
+
+回归覆盖见 [状态边与存储契约测试](../tests/services/session/test_turn_transitions.py)：包含六种状态的 36 种组合、两个存储的相同行为、同态写入的参数保护、拒绝写入无副作用、等待/取消后的延迟恢复，以及 SQLite 竞争终态写入。PocketBase 测试使用集合替身，验证适配器语义，不代表真实服务器并发验证。
 
 ## 3. 运行时状态与持久化状态分开
 
@@ -324,15 +341,16 @@ registered / awaiting_input / answered / graded / abandoned
 
 ### 维护边界
 
-- 合法转换规则分散，增加状态时需要同步应用层、存储、协议及前端。
+- 回合合法边已集中，但业务触发条件和前端投影仍分布在不同模块；新增状态仍需检查协议、事件、查询和前端。
+- PocketBase 条件检查与更新不是服务端原子操作，需要单独补充跨进程并发保证。
 - Agent 使用计数器、布尔标记、局部变量和结果对象组合控制，阅读成本随异常分支增加。
 - 阶段列表不等于经过验证的状态机。
 - 事件日志支持回放，但尚不足以重建全部执行上下文。
 - 流程正常结束并不能证明教学目标真正达成或模型结论正确。
 
-### 建议一：集中声明回合转换规则
+### 已落地：集中声明回合转换规则
 
-可以将“源状态、动作、目标状态、前置条件”收敛为共享协议，减少 SQLite、PocketBase 和运行时代码之间的规则漂移。
+共享 [core/turn_state.py](../deeptutor/core/turn_state.py) 已成为状态枚举、集合和合法边的定义来源。SQLite、PocketBase、应用服务和失联恢复复用这些定义；存储层在原有参数检查后验证状态边。核心模块只依赖标准库，避免存储层反向依赖运行时。
 
 | 动作 | 源状态示例 | 目标状态 | 条件示例 |
 | --- | --- | --- | --- |
@@ -342,7 +360,7 @@ registered / awaiting_input / answered / graded / abandoned
 | 失败 | 活动状态 | `failed` | 有明确失败结果 |
 | 取消 | 活动状态 | `cancelled` | 执行清理及终态协调完成 |
 
-这张表是改进方向示意，不是当前已经存在的统一实现。
+上表中的源/目标由共享边表约束，条件示例仍属于应用层与能力层职责，没有统一改造为动作调度引擎。后续应在保留这份契约的基础上增强 PocketBase 原子条件更新，以及能力结果的结构化表达。
 
 ### 建议二：强化结构化结果类型
 
@@ -358,7 +376,8 @@ registered / awaiting_input / answered / graded / abandoned
 
 | 主题 | 文件 |
 | --- | --- |
-| 回合状态、失败分类、租约 | [coordination/types.py](../deeptutor/runtime/coordination/types.py) |
+| 回合状态、集合与合法转换 | [core/turn_state.py](../deeptutor/core/turn_state.py) |
+| 失败分类、租约与状态兼容导出 | [coordination/types.py](../deeptutor/runtime/coordination/types.py) |
 | 回合应用服务 | [app/service.py](../deeptutor/app/service.py) |
 | SQLite 状态、提交与事件 | [session/sqlite_store.py](../deeptutor/services/session/sqlite_store.py) |
 | PocketBase 存储实现 | [session/pocketbase_store.py](../deeptutor/services/session/pocketbase_store.py) |
@@ -374,4 +393,4 @@ registered / awaiting_input / answered / graded / abandoned
 | 前端状态与消息投影 | [ChatStateAdapter.tsx](../web/features/chat/ChatStateAdapter.tsx) |
 | 学习业务状态 | [learning/models.py](../deeptutor/learning/models.py) |
 
-已有恢复场景测试可参考 [等待回合恢复测试](../tests/app/test_waiting_turn_recovery.py)和[事件日志恢复测试](../tests/runtime/coordination/test_journal_recovery.py)。本文整理过程中未重新执行这些测试。
+恢复场景测试可参考 [等待回合恢复测试](../tests/app/test_waiting_turn_recovery.py)、[事件日志恢复测试](../tests/runtime/coordination/test_journal_recovery.py)和[失联活动回合恢复测试](../tests/app/test_blocked_session_reclaims_itself.py)。其中 `queued` 场景直接构造兼容记录，不再借用非法的 `running → queued` 公开状态转换创建测试数据。

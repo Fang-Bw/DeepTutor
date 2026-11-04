@@ -253,14 +253,16 @@ DeepTutor 支持连接已经运行的本地代理软件，不会创建 VPN 隧�
 2. 打开 **Settings → Network → Codex network proxy**。
 3. 在 **Proxy URL** 填写地址，例如 `http://127.0.0.1:7890` 或 `socks5://127.0.0.1:1080`。这些只是格式示例，必须替换为实际地址。
 4. 可先点击“测试 Codex 网络”。它使用当前输入的地址访问固定的授权和模型端点，不保存草稿、不携带登录令牌，也不会完成账号授权。模型端点返回 HTTP 401 也可表示网络可达，因为测试故意不提供凭据。
-5. 点击 **Apply changes**，然后按本指南停止并重新启动 DeepTutor。
+5. 点击 **Apply changes**。Codex 代理对之后发起的请求生效，已开始的请求继续使用原连接；仅保存草稿不会改变正在使用的配置。端口、API 地址和 CORS 的修改仍需重启。
 6. 返回 **Settings → Providers**，重新发起 Codex 登录；之前失败的授权码不应重复使用。
 
 代理覆盖 Codex 的授权码换令牌、令牌刷新与撤销、模型列表、客户端版本查询，以及对话推理。浏览器打开授权页面仍使用浏览器自身的网络设置，本地 OAuth 回调也不会经过该代理；其他模型供应商的请求不受此设置影响。
 
 支持 `http://`、`https://` 和 `socks5://`，要求包含主机及端口，不支持 URL 内携带用户名、密码、查询参数或额外路径。HTTPS 代理指代理服务器本身使用 TLS；多数本地 HTTP/Mixed 端口应填写 `http://`，它仍能通过 CONNECT 转发 HTTPS 请求。TLS 证书校验不会因配置代理而关闭。
 
-设置保存在 `data/user/settings/system.json` 的 `codex_proxy_url` 字段。留空时沿用 HTTPX 的环境代理行为；如需恢复原来的访问方式，清空字段、应用更改并重启即可。在容器中，`127.0.0.1` 指容器自身，应使用容器能够访问到的代理地址。
+设置保存在 `data/user/settings/system.json` 的 `codex_proxy_url` 字段。留空时沿用 HTTPX 的环境代理行为；如需恢复原来的访问方式，清空字段并应用更改即可。修改进程代理环境变量仍应重启服务。在容器中，`127.0.0.1` 指容器自身，应使用容器能够访问到的代理地址。
+
+每个用户拥有独立的 Codex 连接池。相同代理、事件循环、超时与 TLS 配置的请求可以复用连接；代理变更后旧连接停止接收新请求，待其流式请求结束再关闭。认证请求始终使用证书校验，与推理路径的 TLS 配置分开管理。诊断按钮使用独立的无凭据客户端，不复用已登录会话。
 
 代理连通不代表账号授权成功；如果出口仍返回 `unsupported_country_region_territory`，则 OpenAI 不支持该出口所在地区。代理停止或不可达时，Codex 请求会失败，不会自动切换为直连。
 
@@ -270,6 +272,8 @@ DeepTutor 支持连接已经运行的本地代理软件，不会创建 VPN 隧�
 
 - [对话请求与 LLM 转接原理](./CHAT_REQUEST_FLOW.md)
 - [状态建模与流转分析](./STATE_MODELING.md)
+- [前端运行时性能基准](./FRONTEND_RUNTIME_BENCHMARK.md)
+- [学习预测离线评测](./LEARNING_EVALUATION.md)
 - [Python 依赖与可选功能](../pyproject.toml)
 - [前端依赖与脚本](../web/package.json)
 - [CLI 启动和停止命令](../deeptutor_cli/main.py)

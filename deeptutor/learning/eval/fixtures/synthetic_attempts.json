@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "synthetic-learning-replay-example",
+  "provenance": "synthetic",
+  "attempts": [
+    {"id":"a1","learner_id":"synthetic-alex","knowledge_point_id":"fractions","knowledge_type":"concept","timestamp":1700000000,"outcome":0},
+    {"id":"a2","learner_id":"synthetic-alex","knowledge_point_id":"fractions","knowledge_type":"concept","timestamp":1700000300,"outcome":0.5,"review_quality":0.4},
+    {"id":"a3","learner_id":"synthetic-alex","knowledge_point_id":"fractions","knowledge_type":"concept","timestamp":1700172800,"outcome":1},
+    {"id":"a4","learner_id":"synthetic-alex","knowledge_point_id":"fractions","knowledge_type":"concept","timestamp":1700864000,"outcome":0},
+    {"id":"a5","learner_id":"synthetic-alex","knowledge_point_id":"fractions","knowledge_type":"concept","timestamp":1700950400,"outcome":1},
+    {"id":"b1","learner_id":"synthetic-blair","knowledge_point_id":"fractions","knowledge_type":"concept","timestamp":1700000000,"outcome":1},
+    {"id":"b2","learner_id":"synthetic-blair","knowledge_point_id":"fractions","knowledge_type":"concept","timestamp":1700259200,"outcome":1},
+    {"id":"b3","learner_id":"synthetic-blair","knowledge_point_id":"fractions","knowledge_type":"concept","timestamp":1701209600,"outcome":0},
+    {"id":"c1","learner_id":"synthetic-alex","knowledge_point_id":"vocabulary","knowledge_type":"memory","timestamp":1700000000,"outcome":1},
+    {"id":"c2","learner_id":"synthetic-alex","knowledge_point_id":"vocabulary","knowledge_type":"memory","timestamp":1700086400,"outcome":0},
+    {"id":"c3","learner_id":"synthetic-alex","knowledge_point_id":"vocabulary","knowledge_type":"memory","timestamp":1700259200,"outcome":1},
+    {"id":"d1","learner_id":"synthetic-blair","knowledge_point_id":"untimed-procedure","knowledge_type":"procedure","outcome":0},
+    {"id":"d2","learner_id":"synthetic-blair","knowledge_point_id":"untimed-procedure","knowledge_type":"procedure","outcome":1}
+  ]
+}

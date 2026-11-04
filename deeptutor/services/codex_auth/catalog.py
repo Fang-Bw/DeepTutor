@@ -27,6 +27,7 @@ from .contracts import (
     CodexModel,
     normalize_codex_reasoning_levels,
 )
+from .http_pool import CodexHTTPPool
 from .storage import CodexCredentialStore
 
 
@@ -130,7 +131,7 @@ class CodexModelCatalog:
         self,
         store: CodexCredentialStore,
         *,
-        http: httpx.AsyncClient,
+        http: httpx.AsyncClient | CodexHTTPPool,
         version_http: httpx.AsyncClient | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:

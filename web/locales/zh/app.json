@@ -5559,5 +5559,8 @@
   "codex.network.testHint": "测试当前输入的代理地址，无需保存，也不会使用登录凭据。网络可达不代表账号有访问权限或模型可用，仍需登录验证。",
   "codex.network.authorization": "授权服务",
   "codex.network.models": "模型目录服务",
-  "codex.network.reachable": "网络可达（尚未验证账号权限）"
+  "codex.network.reachable": "网络可达（尚未验证账号权限）",
+  "codex.network.proxyApplyHint": "点击“应用更改”后，Codex 代理更改将对新请求生效。正在运行的请求会通过原有连接完成，不会被中断。浏览器授权和本地回调仍使用各自的网络设置。",
+  "codex.network.restartHint": "端口、公共 API 和 CORS 更改需要重启。Codex 代理更改在应用设置后对新请求生效。",
+  "codex.network.restartScope": "端口、API 地址和 CORS 更改需要重启"
 }

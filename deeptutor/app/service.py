@@ -10,6 +10,7 @@ import json
 import time
 from typing import Any
 
+from deeptutor.core.turn_state import ACTIVE_TURN_STATUSES
 from deeptutor.runtime.coordination import RuntimeCoordinator
 from deeptutor.services.session.protocol import ActiveTurnConflict, SessionStoreProtocol
 from deeptutor.services.session.turn_runtime import TurnRuntimeManager
@@ -237,7 +238,7 @@ class TurnApplicationService:
     # The cap below exists only for a leaked lease; it is not the normal path.
     _POST_DONE_MAX_SECONDS = 30.0
     _CANCEL_WAIT_INTERVAL_SECONDS = 0.05
-    _ACTIVE_TURN_STATUSES = frozenset({"queued", "running", "waiting_input"})
+    _ACTIVE_TURN_STATUSES = ACTIVE_TURN_STATUSES
 
     @staticmethod
     def _done_has_tail(event: dict[str, Any]) -> bool:

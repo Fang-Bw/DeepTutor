@@ -7,13 +7,13 @@ import hashlib
 import json
 from typing import Any
 
-import httpx
+import httpx  # noqa: F401 - retained as the injectable client seam for direct-call tests
 from loguru import logger
 
 from deeptutor.services.codex_auth import CodexAuthError, get_codex_oauth_service
 from deeptutor.services.codex_auth.constants import CODEX_DEFAULT_MODEL_ID, CODEX_RESPONSES_URL
 from deeptutor.services.codex_auth.contracts import CodexToken
-from deeptutor.services.codex_auth.network import codex_proxy_options
+from deeptutor.services.codex_auth.http_pool import codex_http_client
 from deeptutor.services.llm.exceptions import LLMProviderTransportError
 from deeptutor.services.llm.openai_http_client import disable_ssl_verify_enabled
 from deeptutor.services.llm.provider_core.base import LLMProvider, LLMResponse, ToolCallRequest
@@ -239,7 +239,7 @@ async def _request_codex(
     on_content_delta: Callable[[str], Awaitable[None]] | None = None,
     on_provider_event: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> tuple[str, list[ToolCallRequest], str]:
-    async with httpx.AsyncClient(timeout=60.0, verify=verify, **codex_proxy_options()) as client:
+    async with codex_http_client(timeout=60.0, verify=verify) as client:
         async with client.stream("POST", url, headers=headers, json=body) as response:
             if response.status_code != 200:
                 raw = await response.aread()

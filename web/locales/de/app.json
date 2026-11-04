@@ -5559,5 +5559,8 @@
   "codex.network.testHint": "Testet die aktuell eingegebene Proxy-Adresse, ohne sie zu speichern oder Anmeldedaten zu verwenden. Die Erreichbarkeit bestätigt weder den Kontozugriff noch die Modellverfügbarkeit; melde dich an, um beides zu überprüfen.",
   "codex.network.authorization": "Autorisierungsdienst",
   "codex.network.models": "Modellkatalogdienst",
-  "codex.network.reachable": "Über das Netzwerk erreichbar (Kontozugriff nicht geprüft)"
+  "codex.network.reachable": "Über das Netzwerk erreichbar (Kontozugriff nicht geprüft)",
+  "codex.network.proxyApplyHint": "Codex-Proxy-Änderungen gelten nach „Änderungen übernehmen“ für neue Anfragen. Laufende Anfragen werden über ihre bestehende Verbindung abgeschlossen. Die Browserautorisierung und lokale Rückrufe behalten ihre eigenen Netzwerkeinstellungen.",
+  "codex.network.restartHint": "Änderungen an Ports, öffentlicher API und CORS erfordern einen Neustart. Codex-Proxy-Änderungen gelten nach dem Übernehmen der Einstellungen für neue Anfragen.",
+  "codex.network.restartScope": "Erforderlich für Ports, API-URL und CORS"
 }

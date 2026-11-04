@@ -114,7 +114,15 @@ class TurnRepository(Protocol):
         error: str = "",
         failure_code: str = "",
         retryable: bool = False,
-    ) -> bool: ...
+    ) -> bool:
+        """Apply a legal edge from ``core.turn_state`` when guards match.
+
+        Unknown targets raise ``ValueError``; a missing turn, illegal edge,
+        or mismatching expected status/fencing token returns ``False`` without
+        changing the row. Repeating the same state may update its metadata.
+        Backend concurrency guarantees are separate from this state policy.
+        """
+        ...
 
     async def append_events(
         self,

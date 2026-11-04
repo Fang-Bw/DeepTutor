@@ -5938,5 +5938,8 @@
   "codex.network.testHint": "Teste l’adresse du proxy actuellement saisie sans l’enregistrer ni utiliser d’identifiants de connexion. L’accessibilité réseau ne confirme ni les droits du compte ni la disponibilité des modèles ; connectez-vous pour les vérifier.",
   "codex.network.authorization": "Service d’autorisation",
   "codex.network.models": "Service de catalogue des modèles",
-  "codex.network.reachable": "Accessible par le réseau (droits du compte non vérifiés)"
+  "codex.network.reachable": "Accessible par le réseau (droits du compte non vérifiés)",
+  "codex.network.proxyApplyHint": "Les modifications du proxy Codex s’appliquent aux nouvelles requêtes après avoir cliqué sur « Appliquer les modifications ». Les requêtes en cours se terminent avec leur connexion existante. L’autorisation dans le navigateur et les rappels locaux conservent leurs propres paramètres réseau.",
+  "codex.network.restartHint": "Les modifications des ports, de l’API publique et de CORS nécessitent un redémarrage. Les modifications du proxy Codex s’appliquent aux nouvelles requêtes après l’application des paramètres.",
+  "codex.network.restartScope": "Requis pour les ports, l’URL de l’API et CORS"
 }

@@ -19,6 +19,7 @@
     "check:fast": "npm run contracts:check && npm run architecture:check && npm run typecheck && npm run test:node && npm run test:unit && npm run lint && npm run i18n:check",
     "check": "npm run check:fast && npm run build && npm run perf:check",
     "perf:check": "node ./scripts/route_budgets.mjs",
+    "perf:runtime": "playwright test --config=playwright.benchmark.config.ts",
     "build:perf": "npm run build && npm run perf:check",
     "i18n:parity": "node ./scripts/i18n_parity.mjs",
     "i18n:audit": "node ./scripts/i18n_audit.mjs",

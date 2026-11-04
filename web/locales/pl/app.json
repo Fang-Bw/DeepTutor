@@ -5575,5 +5575,8 @@
   "codex.network.testHint": "Testuje aktualnie wpisany adres proxy bez zapisywania go i bez używania danych logowania. Dostępność sieciowa nie potwierdza uprawnień konta ani dostępności modeli; zaloguj się, aby je zweryfikować.",
   "codex.network.authorization": "Usługa autoryzacji",
   "codex.network.models": "Usługa katalogu modeli",
-  "codex.network.reachable": "Osiągalna przez sieć (uprawnienia konta niezweryfikowane)"
+  "codex.network.reachable": "Osiągalna przez sieć (uprawnienia konta niezweryfikowane)",
+  "codex.network.proxyApplyHint": "Zmiany proxy Codex dotyczą nowych żądań po kliknięciu „Zastosuj zmiany”. Trwające żądania zostaną ukończone przez dotychczasowe połączenie. Autoryzacja w przeglądarce i lokalne wywołania zwrotne zachowują własne ustawienia sieciowe.",
+  "codex.network.restartHint": "Zmiany portów, publicznego API i CORS wymagają ponownego uruchomienia. Zmiany proxy Codex dotyczą nowych żądań po zastosowaniu ustawień.",
+  "codex.network.restartScope": "Wymagane dla portów, adresu URL API i CORS"
 }

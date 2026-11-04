@@ -8,14 +8,7 @@ import time
 from typing import Any
 import uuid
 
-
-class TurnStatus(StrEnum):
-    QUEUED = "queued"
-    RUNNING = "running"
-    WAITING_INPUT = "waiting_input"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+from deeptutor.core.turn_state import TurnStatus
 
 
 class TurnFailureCode(StrEnum):

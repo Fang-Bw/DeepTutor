@@ -5559,5 +5559,8 @@
   "codex.network.testHint": "Tests the proxy address currently entered without saving it or using login credentials. Network reachability does not confirm account access or model availability; sign in to verify those.",
   "codex.network.authorization": "Authorization service",
   "codex.network.models": "Model catalog service",
-  "codex.network.reachable": "Network reachable (account access not verified)"
+  "codex.network.reachable": "Network reachable (account access not verified)",
+  "codex.network.proxyApplyHint": "Codex proxy changes apply to new requests after Apply changes. Requests already running finish on their existing connection. Browser authorization and local callbacks keep their own network settings.",
+  "codex.network.restartHint": "Port, public API and CORS changes require a restart. Codex proxy changes apply to new requests after applying settings.",
+  "codex.network.restartScope": "Required for ports, API URL and CORS"
 }

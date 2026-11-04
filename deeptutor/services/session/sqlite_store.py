@@ -28,6 +28,12 @@ from deeptutor.core.assessment import (
     ASSESSMENT_TYPES,
     QUESTION_ORIGIN_TYPES,
 )
+from deeptutor.core.turn_state import (
+    ACTIVE_TURN_STATUSES,
+    ALL_TURN_STATUSES,
+    TERMINAL_TURN_STATUSES,
+    can_transition_turn,
+)
 from deeptutor.services.path_service import get_path_service
 from deeptutor.services.session.protocol import (
     SUBMISSION_ASSISTANT_FIELD,
@@ -126,9 +132,6 @@ _NOT_RECYCLED_ENTRY_SQL = (
     "NOT EXISTS (SELECT 1 FROM sessions s"
     " WHERE s.id = {entries}.session_id AND s.deleted_at IS NOT NULL)"
 )
-ACTIVE_TURN_STATUSES = frozenset({"queued", "running", "waiting_input"})
-TERMINAL_TURN_STATUSES = frozenset({"completed", "failed", "cancelled"})
-ALL_TURN_STATUSES = ACTIVE_TURN_STATUSES | TERMINAL_TURN_STATUSES
 
 
 def make_imported_session_id(source: str, external_id: str) -> str:
@@ -1712,7 +1715,7 @@ class SQLiteSessionStore:
                 fencing_token
             ):
                 return False
-            if current["status"] in TERMINAL_TURN_STATUSES and current["status"] != status:
+            if not can_transition_turn(current["status"], status):
                 return False
             cur = conn.execute(
                 """

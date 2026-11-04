@@ -58,7 +58,12 @@ async def _blocked_session(store: SQLiteSessionStore, status: str) -> tuple[str,
     session = await store.create_session("Blocked")
     session_id = session["id"]
     turn = await store.begin_turn(session_id, capability="chat")
-    if status != "running":
+    if status == "queued":
+        # Seed a legacy/admitted queued row. Public transitions must not move
+        # an already running turn back into the queue.
+        with store._connect() as conn:
+            conn.execute("UPDATE turns SET status = ? WHERE id = ?", (status, turn["id"]))
+    elif status != "running":
         assert await store.transition_turn(turn["id"], status, expected_status="running")
     return session_id, turn["id"]
 

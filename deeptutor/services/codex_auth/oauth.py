@@ -24,6 +24,7 @@ from .constants import (
 )
 from .contracts import CodexAuthError, CodexCredentials
 from .diagnostics import response_error, transport_error
+from .http_pool import CodexHTTPPool
 
 
 @dataclass(frozen=True)
@@ -277,7 +278,7 @@ def _first(values: list[str] | None) -> str | None:
 class CodexOAuthClient:
     """HTTP client for the audited Codex OAuth token endpoints."""
 
-    def __init__(self, http: httpx.AsyncClient) -> None:
+    def __init__(self, http: httpx.AsyncClient | CodexHTTPPool) -> None:
         self._http = http
 
     async def exchange_code(
