@@ -384,6 +384,56 @@ async def test_network_settings_roundtrip_normalizes_cors_origins(
 
 
 @pytest.mark.asyncio
+async def test_codex_network_probe_uses_draft_url_without_saving(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from deeptutor.services.codex_auth import network_probe
+
+    probe = AsyncMock(return_value={"ok": True, "checks": []})
+    monkeypatch.setattr(network_probe, "probe_codex_network", probe)
+    monkeypatch.setattr(settings_router, "_require_settings_admin", lambda: None)
+    monkeypatch.setattr(
+        settings_router,
+        "get_runtime_settings_service",
+        lambda: pytest.fail("Probe must not write settings"),
+    )
+    result = await settings_router.test_codex_network(
+        settings_router.CodexNetworkProbeRequest(codex_proxy_url=" http://127.0.0.1:7890/ ")
+    )
+    assert result["ok"] is True
+    probe.assert_awaited_once_with("http://127.0.0.1:7890")
+
+
+@pytest.mark.asyncio
+async def test_codex_network_probe_requires_admin(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from fastapi import HTTPException
+
+    from deeptutor.services.codex_auth import network_probe
+
+    def denied():
+        raise HTTPException(status_code=403, detail="Admin required")
+
+    probe = AsyncMock()
+    monkeypatch.setattr(network_probe, "probe_codex_network", probe)
+    monkeypatch.setattr(settings_router, "_require_settings_admin", denied)
+    with pytest.raises(HTTPException) as error:
+        await settings_router.test_codex_network(settings_router.CodexNetworkProbeRequest())
+    assert error.value.status_code == 403
+    probe.assert_not_awaited()
+
+
+def test_codex_network_probe_rejects_credentials_in_url():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        settings_router.CodexNetworkProbeRequest(
+            codex_proxy_url="http://user:secret@localhost:7890"
+        )
+
+
+@pytest.mark.asyncio
 async def test_chat_attachment_settings_roundtrip(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:

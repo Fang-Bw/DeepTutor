@@ -8386,6 +8386,23 @@ export interface paths {
     readonly patch?: never;
     readonly trace?: never;
   };
+  readonly "/api/settings/network/codex-test": {
+    readonly parameters: {
+      readonly query?: never;
+      readonly header?: never;
+      readonly path?: never;
+      readonly cookie?: never;
+    };
+    readonly get?: never;
+    readonly put?: never;
+    /** Test Codex Network */
+    readonly post: operations["test_codex_network_api_settings_network_codex_test_post"];
+    readonly delete?: never;
+    readonly options?: never;
+    readonly head?: never;
+    readonly patch?: never;
+    readonly trace?: never;
+  };
   readonly "/api/settings/presets": {
     readonly parameters: {
       readonly query?: never;
@@ -11951,6 +11968,14 @@ export interface components {
     readonly ChatStarterSettingsUpdate: {
       /** Trace Count */
       readonly trace_count: number;
+    };
+    /** CodexNetworkProbeRequest */
+    readonly CodexNetworkProbeRequest: {
+      /**
+       * Codex Proxy Url
+       * @default
+       */
+      readonly codex_proxy_url: string;
     };
     /** CodexOAuthCallbackPayload */
     readonly CodexOAuthCallbackPayload: {
@@ -17314,6 +17339,8 @@ export type SchemaChatResponseTimeoutUpdate =
   components["schemas"]["ChatResponseTimeoutUpdate"];
 export type SchemaChatStarterSettingsUpdate =
   components["schemas"]["ChatStarterSettingsUpdate"];
+export type SchemaCodexNetworkProbeRequest =
+  components["schemas"]["CodexNetworkProbeRequest"];
 export type SchemaCodexOAuthCallbackPayload =
   components["schemas"]["CodexOAuthCallbackPayload"];
 export type SchemaCodexReasoningEffortUpdate =
@@ -36523,6 +36550,45 @@ export interface operations {
         };
         content: {
           readonly "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      readonly 422: {
+        headers: {
+          readonly [name: string]: unknown;
+        };
+        content: {
+          readonly "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  readonly test_codex_network_api_settings_network_codex_test_post: {
+    readonly parameters: {
+      readonly query?: never;
+      readonly header?: {
+        readonly Authorization?: string | null;
+      };
+      readonly path?: never;
+      readonly cookie?: {
+        readonly dt_token?: string | null;
+      };
+    };
+    readonly requestBody: {
+      readonly content: {
+        readonly "application/json": components["schemas"]["CodexNetworkProbeRequest"];
+      };
+    };
+    readonly responses: {
+      /** @description Successful Response */
+      readonly 200: {
+        headers: {
+          readonly [name: string]: unknown;
+        };
+        content: {
+          readonly "application/json": {
+            readonly [key: string]: unknown;
+          };
         };
       };
       /** @description Validation Error */

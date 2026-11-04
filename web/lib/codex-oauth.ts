@@ -227,6 +227,21 @@ export function shouldPollCodexStatus(status: CodexOAuthStatus): boolean {
 }
 
 export function codexErrorMessageKey(code: string | null): string {
+  switch (code) {
+    case "network_timeout": return "codex.oauth.networkTimeout";
+    case "proxy_connection_failed": return "codex.oauth.proxyFailed";
+    case "network_connection_failed": return "codex.oauth.connectionFailed";
+    case "tls_verification_failed": return "codex.oauth.tlsFailed";
+    case "unsupported_region": return "codex.oauth.unsupportedRegion";
+    case "authorization_code_rejected":
+    case "token_refresh_rejected":
+    case "authentication_required": return "codex.oauth.signInAgain";
+    case "authorization_forbidden": return "codex.oauth.accessDenied";
+    case "authorization_rate_limited": return "codex.oauth.rateLimited";
+    case "authorization_service_unavailable": return "codex.oauth.serviceUnavailable";
+    case "token_exchange_failed": return "codex.oauth.exchangeFailed";
+    case "token_refresh_failed": return "codex.oauth.refreshFailed";
+  }
   if (code === "catalog_unavailable" || code === "catalog_invalid") {
     return "codex.oauth.catalogFailed";
   }

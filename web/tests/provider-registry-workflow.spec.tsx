@@ -197,6 +197,33 @@ beforeEach(() => {
   vi.stubGlobal("matchMedia", () => ({ matches: false }));
 });
 
+it("continues from a provider link with that provider selected without writing or changing defaults", async () => {
+  live.connections = [{ id: "new", name: "New account", provider: "custom", api_key: "new-key", base_url: "https://new.test/v1", api_version: "" }];
+  const before = structuredClone(live);
+  window.history.replaceState(null, "", "/settings/llm?provider=connection%3Anew&add=1");
+  render(<Harness page="llm" />);
+  const panel = await screen.findByRole("region", { name: "Add model" });
+  expect(within(panel).getByRole("combobox", { name: "Configured provider" })).toHaveValue("connection:new");
+  fireEvent.click(within(panel).getByRole("button", { name: "Continue" }));
+  expect(screen.getByRole("region", { name: "Model settings" })).toBeVisible();
+  expect(mocks.settings.draft.services.llm.active_model_id).toBe("one");
+  expect(mocks.settings.draft.services.llm.profiles.at(-1)?.provider_ref?.connection_id).toBe("new");
+  expect(live).toEqual(before);
+  expect(mocks.save).not.toHaveBeenCalled();
+  expect(mocks.fetch).not.toHaveBeenCalled();
+});
+
+it("shows a prominent next step after entering provider credentials", () => {
+  live.connections = [{ id: "new", name: "New account", provider: "custom", api_key: "", base_url: "", api_version: "" }];
+  render(<Harness page="providers" />);
+  fireEvent.click(screen.getByRole("button", { name: /New account/ }));
+  fireEvent.change(screen.getByLabelText("API key"), { target: { value: "new-key" } });
+  expect(screen.getByRole("link", { name: "settings.modelSetup.configureModels" })).toHaveAttribute("href", "/settings/llm?provider=connection%3Anew&add=1");
+  expect(mocks.settings.draft.connections?.[0].api_key).toBe("new-key");
+  expect(live.connections?.[0].api_key).toBe("");
+  expect(mocks.save).not.toHaveBeenCalled();
+});
+
 it("offers one MiniMax vendor with protocol choices instead of legacy provider aliases", () => {
   render(<Harness page="providers" providerOptions={minimaxProviders} />);
   fireEvent.click(screen.getByRole("button", { name: "Add provider" }));

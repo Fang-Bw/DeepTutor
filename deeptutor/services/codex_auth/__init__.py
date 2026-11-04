@@ -11,6 +11,7 @@ from .contracts import (
 )
 from .service import (
     CodexOAuthService,
+    close_codex_oauth_services,
     get_codex_oauth_service,
     reconcile_codex_catalog_update,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "CodexToken",
     "TokenClaims",
     "decode_codex_jwt",
+    "close_codex_oauth_services",
     "get_codex_oauth_service",
     "reconcile_codex_catalog_update",
 ]

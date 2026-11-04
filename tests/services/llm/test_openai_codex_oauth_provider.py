@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import json
 from typing import Any, AsyncIterator
 
 import httpcore
 import httpx
 import pytest
 
+from deeptutor.runtime.agentic.client import _ProviderOpenAIAdapter
+from deeptutor.runtime.agentic.usage import UsageTracker, record_streamed_usage
 from deeptutor.services.codex_auth.constants import CODEX_RESPONSES_URL
 from deeptutor.services.codex_auth.contracts import CodexAuthError, CodexToken
 from deeptutor.services.llm.exceptions import LLMProviderTransportError
@@ -53,6 +56,153 @@ class FakeCodexService:
     async def inference_guard(self) -> AsyncIterator[None]:
         self.guard_entries += 1
         yield
+
+
+def _mock_codex_stream(monkeypatch: pytest.MonkeyPatch, events: list[dict]) -> None:
+    """Exercise the actual HTTP/SSE path with an in-memory transport."""
+    content = "".join(f"data: {json.dumps(event)}\n\n" for event in events).encode()
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == CODEX_RESPONSES_URL
+        return httpx.Response(200, content=content)
+
+    client_type = httpx.AsyncClient
+    transport = httpx.MockTransport(respond)
+    monkeypatch.setattr(
+        module.httpx,
+        "AsyncClient",
+        lambda **kwargs: client_type(transport=transport, **kwargs),
+    )
+    monkeypatch.setattr(module, "codex_proxy_options", lambda: {})
+    monkeypatch.setattr(module, "get_codex_oauth_service", FakeCodexService)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_codex_reports_usage_and_replayable_reasoning_metadata(
+    monkeypatch: pytest.MonkeyPatch, stream: bool
+) -> None:
+    reasoning = {"type": "reasoning", "id": "rs_1", "encrypted_content": "opaque-state"}
+    message = {
+        "type": "message",
+        "id": "msg_1",
+        "role": "assistant",
+        "content": [{"type": "output_text", "text": "hello"}],
+    }
+    _mock_codex_stream(
+        monkeypatch,
+        [
+            {"type": "response.output_item.done", "item": reasoning},
+            {"type": "response.output_text.delta", "delta": "hello"},
+            {
+                "type": "response.output_text.annotation.added",
+                "annotation": {
+                    "type": "url_citation",
+                    "url": "https://example.com",
+                    "title": "Source",
+                },
+            },
+            {"type": "response.output_item.done", "item": message},
+            {
+                "type": "response.completed",
+                "response": {
+                    "status": "completed",
+                    "usage": {
+                        "input_tokens": 20,
+                        "output_tokens": 8,
+                        "total_tokens": 28,
+                        "input_tokens_details": {"cached_tokens": 10},
+                        "output_tokens_details": {"reasoning_tokens": 3},
+                    },
+                },
+            },
+        ],
+    )
+    provider = OpenAICodexProvider()
+    call = provider.chat_stream if stream else provider.chat
+    result = await call(messages=[{"role": "user", "content": "hello"}])
+
+    assert result.content == "hello"
+    assert result.finish_reason == "stop"
+    assert result.usage == {
+        "prompt_tokens": 20,
+        "completion_tokens": 8,
+        "total_tokens": 28,
+        "cache_read_input_tokens": 10,
+        "reasoning_tokens": 3,
+    }
+    assert result.provider_specific_fields == {
+        "native_output_items": [reasoning, message],
+        "citations": [{"url": "https://example.com", "title": "Source"}],
+    }
+
+
+@pytest.mark.asyncio
+async def test_codex_usage_reaches_runtime_accounting(monkeypatch: pytest.MonkeyPatch) -> None:
+    _mock_codex_stream(
+        monkeypatch,
+        [
+            {"type": "response.output_text.delta", "delta": "hello"},
+            {
+                "type": "response.completed",
+                "response": {"usage": {"input_tokens": 20, "output_tokens": 8}},
+            },
+        ],
+    )
+    adapter = _ProviderOpenAIAdapter(OpenAICodexProvider())
+    stream = await adapter.chat.completions.create(
+        model="openai-codex/gpt-5.6-sol",
+        messages=[{"role": "user", "content": "hello"}],
+        stream=True,
+    )
+    chunks = [chunk async for chunk in stream]
+    usage_frames = [chunk.usage for chunk in chunks if chunk.usage]
+    tracker = UsageTracker()
+    record_streamed_usage(tracker, usage_frames[-1])
+
+    assert len(usage_frames) == 1
+    assert tracker.prompt_tokens == 20
+    assert tracker.completion_tokens == 8
+    assert tracker.total_tokens == 28
+    assert tracker.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_codex_missing_usage_stays_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
+    _mock_codex_stream(monkeypatch, [{"type": "response.completed"}])
+
+    result = await OpenAICodexProvider().chat(messages=[{"role": "user", "content": "hello"}])
+
+    assert result.usage == {}
+    assert result.provider_specific_fields == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("partial_response", [False, True])
+async def test_codex_truncated_stream_preserves_retry_guard_through_adapter(
+    monkeypatch: pytest.MonkeyPatch, partial_response: bool
+) -> None:
+    _mock_codex_stream(
+        monkeypatch,
+        [{"type": "response.output_text.delta", "delta": "unfinished"}] if partial_response else [],
+    )
+    adapter = _ProviderOpenAIAdapter(OpenAICodexProvider())
+    stream = await adapter.chat.completions.create(
+        model="openai-codex/gpt-5.6-sol",
+        messages=[{"role": "user", "content": "hello"}],
+        stream=True,
+    )
+    chunks = []
+
+    with pytest.raises(LLMProviderTransportError, match="before a terminal") as caught:
+        async for chunk in stream:
+            chunks.append(chunk)
+
+    assert caught.value.partial_response is partial_response
+    assert [chunk.choices[0].delta.content for chunk in chunks] == (
+        ["unfinished"] if partial_response else []
+    )
+    assert all(chunk.choices[0].finish_reason is None for chunk in chunks)
 
 
 @pytest.mark.asyncio

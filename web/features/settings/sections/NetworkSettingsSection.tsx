@@ -12,6 +12,8 @@ import {
 } from "@/components/settings/shared";
 import { useSettings } from "@/features/settings/store/SettingsStore";
 import { apiFetch, apiUrl } from "@/lib/api";
+import { httpErrorDetail } from "@/lib/http-error-detail";
+import CodexNetworkProbe from "@/components/settings/CodexNetworkProbe";
 import {
   RuntimeHealthCard,
   TurnCoordinationSettings,
@@ -116,12 +118,10 @@ export default function NetworkSettingsPage() {
       try {
         const response = await apiFetch(apiUrl("/api/settings/network"));
         const data = (await response.json().catch(() => ({}))) as
-          NetworkSettingsPayload | { detail?: string };
+          NetworkSettingsPayload | { detail?: unknown };
         if (!response.ok) {
           throw new Error(
-            "detail" in data && data.detail
-              ? data.detail
-              : t("Failed to load network settings."),
+            httpErrorDetail(data, t("Failed to load network settings.")),
           );
         }
         if (cancelled) return;
@@ -179,12 +179,10 @@ export default function NetworkSettingsPage() {
         }),
       });
       const data = (await response.json().catch(() => ({}))) as
-        NetworkSettingsPayload | { detail?: string };
+        NetworkSettingsPayload | { detail?: unknown };
       if (!response.ok) {
         throw new Error(
-          "detail" in data && data.detail
-            ? data.detail
-            : t("Failed to save network settings."),
+          httpErrorDetail(data, t("Failed to save network settings.")),
         );
       }
       const next = data as NetworkSettingsPayload;
@@ -310,6 +308,7 @@ export default function NetworkSettingsPage() {
                 />
               }
             />
+            <CodexNetworkProbe proxyUrl={draft.codex_proxy_url || ""} />
           </SettingSection>
 
           <SettingSection

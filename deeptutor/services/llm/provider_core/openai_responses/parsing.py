@@ -11,7 +11,9 @@ import httpx
 import json_repair
 from loguru import logger
 
+from deeptutor.services.llm.exceptions import LLMProviderTransportError
 from deeptutor.services.llm.provider_core.base import LLMResponse, ToolCallRequest
+from deeptutor.services.llm.request_compat import is_transient_transport_error
 from deeptutor.services.llm.usage_frame import usage_breakdown
 
 FINISH_REASON_MAP = {
@@ -335,10 +337,14 @@ async def iter_sse(response: httpx.Response) -> AsyncGenerator[dict[str, Any], N
         if not data or data == "[DONE]":
             return None
         try:
-            return json.loads(data)
-        except Exception:
-            logger.warning("Failed to parse SSE event JSON: {}", data[:200])
-            return None
+            event = json.loads(data)
+        except (TypeError, ValueError):
+            raise LLMProviderTransportError(
+                "Responses stream contained invalid event JSON."
+            ) from None
+        if not isinstance(event, dict):
+            raise LLMProviderTransportError("Responses stream contained an invalid event payload.")
+        return event
 
     async for line in response.aiter_lines():
         if line == "":
@@ -361,15 +367,43 @@ async def consume_sse(
     on_provider_event: Callable[[str, dict[str, Any]], None] | None = None,
     on_tool_args_delta: ToolArgsDeltaHook | None = None,
 ) -> tuple[str, list[ToolCallRequest], str]:
-    """Consume a Responses API SSE stream."""
+    """Consume a Responses API SSE stream, requiring a semantic terminal event.
+
+    EOF (including a legacy ``[DONE]`` marker) does not prove that the response
+    completed. Preserve whether output already arrived so retry callers do not
+    silently replay a partial answer or a server-side tool action.
+    """
     content = ""
     tool_calls: list[ToolCallRequest] = []
     tool_call_buffers = _ToolCallBuffers()
     finish_reason = "stop"
-    seen_web_search_items: set[str] = set()
+    seen_output_items: set[str] = set()
+    partial_response = False
+    events = iter_sse(response)
 
-    async for event in iter_sse(response):
+    while True:
+        try:
+            event = await anext(events)
+        except StopAsyncIteration:
+            raise LLMProviderTransportError(
+                "Responses stream ended before a terminal response event.",
+                partial_response=partial_response,
+            ) from None
+        except LLMProviderTransportError as exc:
+            exc.partial_response = exc.partial_response or partial_response
+            raise
+        except Exception as exc:
+            if is_transient_transport_error(exc):
+                raise LLMProviderTransportError(
+                    "Responses stream transport failed.",
+                    partial_response=partial_response,
+                ) from exc
+            raise
         event_type = event.get("type")
+        if isinstance(event_type, str) and event_type.startswith(
+            ("response.output_", "response.function_call_arguments.", "response.reasoning")
+        ):
+            partial_response = True
         if event_type == "response.output_item.added":
             item = event.get("item") or {}
             if item.get("type") == "function_call":
@@ -412,12 +446,14 @@ async def consume_sse(
             )
         elif event_type == "response.output_item.done":
             item = event.get("item") or {}
-            if item.get("type") in _WEB_SEARCH_ITEM_TYPES:
+            if item.get("type") in _REPLAYABLE_OUTPUT_ITEM_TYPES:
                 item_id = str(item.get("id") or "")
-                if item_id and item_id not in seen_web_search_items:
-                    seen_web_search_items.add(item_id)
+                if not item_id or item_id not in seen_output_items:
+                    if item_id:
+                        seen_output_items.add(item_id)
                     if on_provider_event:
                         on_provider_event("output_item", dict(item))
+            if item.get("type") in _WEB_SEARCH_ITEM_TYPES:
                 continue
             if item.get("type") == "function_call":
                 call_id = item.get("call_id")
@@ -447,6 +483,7 @@ async def consume_sse(
             usage = _response_usage(response)
             if usage and on_provider_event:
                 on_provider_event("usage", usage)
+            break
         elif event_type in {"error", "response.failed"}:
             raise RuntimeError(f"Response failed: {_response_error_detail(event)[:500]}")
 

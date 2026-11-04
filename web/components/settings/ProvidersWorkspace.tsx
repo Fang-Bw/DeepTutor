@@ -37,6 +37,7 @@ import { ProviderServices } from "./ProviderServices";
 import { AddProviderPanel, ProviderProtocol, type CustomProviderInput } from "./AddProviderPanel";
 import { CodexOAuthCard } from "./CodexOAuthCard";
 import { CodeBuddyAuthCard } from "./CodeBuddyAuthCard";
+import { ModelSetupGuide } from "./ModelSetupGuide";
 import { stringifyExtraHeaders, subPanelClass } from "./shared";
 import {
   WorkspaceDetailEmpty,
@@ -173,6 +174,7 @@ export function ProvidersWorkspace() {
     );
   return (
     <div className="space-y-5">
+      <ModelSetupGuide />
       <WorkspaceSplit
         rail={
           <WorkspaceRail
@@ -263,6 +265,17 @@ export function ProvidersWorkspace() {
                     {optionLabel(source.provider)}
                     {!saved && ` · ${t("Not saved")}`}
                   </p>
+                  {providerServiceSupport(source, "llm", connectionTargets, providers).enabled && (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-[13px] text-[var(--muted-foreground)]">{t("settings.modelSetup.providerNextHint")}</p>
+                      <Link
+                        href={`/settings/llm?provider=${encodeURIComponent(source.id)}${managed ? "" : "&add=1"}`}
+                        className={registryPrimary}
+                      >
+                        {t("settings.modelSetup.configureModels")}<ArrowRight size={14} />
+                      </Link>
+                    </div>
+                  )}
                 </header>
                 <div className="space-y-6 p-4 sm:p-6">
                   {managed ? (

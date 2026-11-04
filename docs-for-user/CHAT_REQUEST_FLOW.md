@@ -266,6 +266,10 @@ Codex 返回的 SSE 流由适配器解析为文本增量、工具调用和结束
 
 页面根据事件逐步显示回答、工具执行过程和完成状态。回合最终结果使用统一结果封装，相关用量由项目的统计机制汇总。
 
+Codex 的原始 Responses SSE 消费器要求收到 `response.completed` 或 `response.incomplete` 这样的终态事件。仅连接关闭或出现 `[DONE]` 不能证明模型已完整回答；缺终态、事件 JSON 损坏或传输中断会作为结构化错误上报，并保留是否已经收到部分输出的信息，防止静默重放造成重复回答。
+
+上游终态提供 token 用量时，Codex 适配器会将其传入统一统计链路，包括上游提供的缓存和推理 token 信息。没有收到用量时保持未知，不伪造为上游报告的零消耗。token 统计不能直接解释为 ChatGPT 套餐账单金额。
+
 因此，页面上的逐字显示不是浏览器直接读取上游 SSE，而是后端解析、处理后推送的流式事件。
 
 源码：[事件总线](../deeptutor/runtime/stream_bus.py)、[事件协议](../deeptutor/core/stream.py)、[统一结果封装](../deeptutor/agents/_shared/capability_result.py)。

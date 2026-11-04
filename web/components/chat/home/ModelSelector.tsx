@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { AlertCircle, Bot, Check, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLingerExpand } from "@/hooks/use-linger-expand";
 import { useOutsideClick } from "@/hooks/use-outside-click";
+import { useAuthStatus } from "@/hooks/useAuthStatus";
 import Tooltip from "@/shared/ui/Tooltip";
 import ToolbarLabel from "./ToolbarLabel";
 import ProviderIcon from "@/components/common/ProviderIcon";
@@ -25,6 +27,20 @@ function formatContextWindow(value?: number) {
 function providerLabel(option: LLMOption) {
   return (
     option.provider_label || option.provider || option.profile_name || "LLM"
+  );
+}
+
+function EmptyModelSetup() {
+  const { t } = useTranslation();
+  const auth = useAuthStatus();
+  if (auth.loading || !auth.statusAvailable || (auth.enabled && !auth.isAdmin)) {
+    return <span className="inline-flex h-8 items-center px-2 text-xs text-[var(--muted-foreground)]">{t(auth.statusAvailable && auth.enabled ? "settings.modelSetup.contactAdmin" : "Models unavailable")}</span>;
+  }
+  return (
+    <Link href="/settings/connections" className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-[var(--primary)] hover:bg-[var(--muted)]">
+      <Bot size={16} aria-hidden />
+      {t("settings.modelSetup.configureModels")}
+    </Link>
   );
 }
 
@@ -179,6 +195,10 @@ export default function ModelSelector({
           t("Select model");
   const menuPlacementClass =
     placement === "bottom" ? "top-full mt-1.5" : "bottom-full mb-1.5";
+
+  if (!loading && !error && options.length === 0 && !allowSystemDefault) {
+    return <EmptyModelSetup />;
+  }
 
   return (
     <div ref={rootRef} className="relative">

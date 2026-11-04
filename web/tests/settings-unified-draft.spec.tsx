@@ -14,6 +14,7 @@ import {
 } from "@/features/settings/store/SettingsStore";
 import { useStagedSettings } from "@/features/settings/store/useStagedSettings";
 import { SettingsToolbar } from "@/components/settings/SettingsToolbar";
+import { ModelSetupGuide } from "@/components/settings/ModelSetupGuide";
 import DocumentParsing from "@/features/settings/sections/DocumentParsingSettingsSection";
 import { MinerUEngineSettings } from "@/components/settings/MinerUEngineSettings";
 import Appearance from "@/features/settings/sections/AppearanceSettingsSection";
@@ -131,6 +132,36 @@ function App({ page = "workspace" }: { page?: string }) {
 async function ready() {
   await waitFor(() => expect(settings.settingsLoading).toBe(false));
 }
+
+it("keeps setup in the draft after save or a failed apply, and offers chat only after the global apply succeeds", async () => {
+  render(<SettingsProvider><Capture /><ModelSetupGuide /><SettingsToolbar /></SettingsProvider>);
+  await ready();
+  act(() => settings.mutateCatalog((next) => {
+    next.services.llm = {
+      active_profile_id: "first",
+      active_model_id: "model",
+      profiles: [{ id: "first", name: "Account", binding: "custom", base_url: "", api_key: "test-key", api_version: "", models: [{ id: "model", name: "Model", model: "example-model" }] }],
+    };
+  }));
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  await waitFor(() => expect(settings.draftState).toBe("saved"));
+  expect(screen.queryByRole("link", { name: "settings.modelSetup.tryChat" })).toBeNull();
+  expect(live.services.llm.active_model_id).toBeNull();
+  const fetch = mocks.fetch.getMockImplementation()!;
+  mocks.fetch.mockImplementation((url: string, init?: RequestInit) => url === "/api/settings/apply" ? reply({ detail: "Not available" }, false) : fetch(url, init));
+  fireEvent.click(screen.getByRole("button", { name: "settings.modelSetup.reviewApply" }));
+  expect(screen.getByRole("button", { name: "Apply changes" })).toHaveFocus();
+  expect(live.services.llm.active_model_id).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
+  await waitFor(() => expect(settings.applying).toBe(false));
+  expect(screen.queryByRole("link", { name: "settings.modelSetup.tryChat" })).toBeNull();
+  expect(live.services.llm.active_model_id).toBeNull();
+  mocks.fetch.mockImplementation(fetch);
+  fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
+  await waitFor(() => expect(settings.draftState).toBe("clean"));
+  expect(live.services.llm.active_model_id).toBe("model");
+  expect(screen.getByRole("link", { name: "settings.modelSetup.tryChat" })).toHaveAttribute("href", "/chat");
+});
 const writes = (endpoint: string) =>
   mocks.fetch.mock.calls.filter(
     ([url, init]) => url === endpoint && init?.method === "PUT",

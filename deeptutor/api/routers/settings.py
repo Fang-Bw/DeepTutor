@@ -372,6 +372,15 @@ class NetworkSettingsUpdate(BaseModel):
         return normalize_codex_proxy(value)
 
 
+class CodexNetworkProbeRequest(BaseModel):
+    codex_proxy_url: str = ""
+
+    @field_validator("codex_proxy_url")
+    @classmethod
+    def validate_codex_proxy(cls, value: str) -> str:
+        return normalize_codex_proxy(value)
+
+
 class ChatAttachmentSettingsUpdate(BaseModel):
     """Chat attachment policy (size caps + extraction budgets).
 
@@ -1090,6 +1099,14 @@ async def update_network_settings(payload: NetworkSettingsUpdate):
         }
     )
     return _network_settings_payload()
+
+
+@router.post("/network/codex-test")
+async def test_codex_network(payload: CodexNetworkProbeRequest) -> dict[str, object]:
+    _require_settings_admin()
+    from deeptutor.services.codex_auth.network_probe import probe_codex_network
+
+    return await probe_codex_network(payload.codex_proxy_url)
 
 
 def _chat_attachments_payload() -> dict[str, Any]:

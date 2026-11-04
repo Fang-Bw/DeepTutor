@@ -74,6 +74,18 @@ class OpenAICodexProvider(LLMProvider):
         if tools:
             body["tools"] = convert_tools(tools)
 
+        usage: dict[str, int] = {}
+        native_output_items: list[dict[str, Any]] = []
+        citations: list[dict[str, Any]] = []
+
+        def collect_provider_event(kind: str, payload: dict[str, Any]) -> None:
+            if kind == "usage":
+                usage.update(payload)
+            elif kind == "output_item":
+                native_output_items.append(payload)
+            elif kind == "citation":
+                citations.append(payload)
+
         service = get_codex_oauth_service()
         async with service.inference_guard():
             try:
@@ -87,6 +99,7 @@ class OpenAICodexProvider(LLMProvider):
                         body,
                         verify=not disable_ssl_verify_enabled(),
                         on_content_delta=on_content_delta,
+                        on_provider_event=collect_provider_event,
                     )
                 except CodexHTTPError as exc:
                     if exc.status_code == 401:
@@ -106,10 +119,24 @@ class OpenAICodexProvider(LLMProvider):
                                 ) from None
                             raise
                     raise
+                # Replay private reasoning together with its adjacent items;
+                # ordinary text/function messages already live in chat history.
+                if not any(item.get("type") == "reasoning" for item in native_output_items):
+                    native_output_items = [
+                        item
+                        for item in native_output_items
+                        if item.get("type") in {"web_search_call", "web_search"}
+                    ]
                 return LLMResponse(
                     content=content,
                     tool_calls=tool_calls,
                     finish_reason=finish_reason,
+                    usage=usage,
+                    provider_specific_fields=(
+                        {"native_output_items": native_output_items, "citations": citations}
+                        if native_output_items or citations
+                        else {}
+                    ),
                 )
             except CodexHTTPError as exc:
                 return LLMResponse(
@@ -121,6 +148,10 @@ class OpenAICodexProvider(LLMProvider):
                     content=f"Error calling Codex: {exc.public_message}",
                     finish_reason="error",
                 )
+            except LLMProviderTransportError:
+                # The SSE consumer already sanitizes the message and records
+                # partial output. Wrapping it again would lose that retry guard.
+                raise
             except Exception as exc:
                 if is_transient_transport_error(exc):
                     # Preserve a structured retry signal without exposing the
@@ -206,6 +237,7 @@ async def _request_codex(
     body: dict[str, Any],
     verify: bool,
     on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+    on_provider_event: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> tuple[str, list[ToolCallRequest], str]:
     async with httpx.AsyncClient(timeout=60.0, verify=verify, **codex_proxy_options()) as client:
         async with client.stream("POST", url, headers=headers, json=body) as response:
@@ -222,7 +254,11 @@ async def _request_codex(
                     response.status_code,
                     _friendly_error(response.status_code),
                 )
-            return await consume_sse(response, on_content_delta)
+            return await consume_sse(
+                response,
+                on_content_delta,
+                on_provider_event=on_provider_event,
+            )
 
 
 def _prompt_cache_key(messages: list[dict[str, Any]]) -> str:

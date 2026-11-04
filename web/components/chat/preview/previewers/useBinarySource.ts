@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { readPreviewBody } from "./readPreviewBody";
 
 // Ceiling for an in-browser office render. docx-preview / exceljs both hold
 // the whole document in memory and lay it out synchronously, so a huge file
@@ -15,8 +16,8 @@ export type BinarySourceState =
 
 /**
  * Fetch the bytes at *url* as an ArrayBuffer for a client-side office
- * renderer (docx-preview / exceljs). Size-guards via the content-length
- * header and aborts on unmount / url change. Mirrors {@link useTextSource}
+ * renderer (docx-preview / exceljs). Limits actual streamed bytes as well as
+ * Content-Length and aborts on unmount / url change. Mirrors useTextSource
  * but yields raw bytes instead of decoded text.
  */
 export function useBinarySource(url: string | null, objectMimeType?: string): BinarySourceState {
@@ -24,12 +25,12 @@ export function useBinarySource(url: string | null, objectMimeType?: string): Bi
   const reqIdRef = useRef(0);
 
   useEffect(() => {
+    const reqId = ++reqIdRef.current;
     if (!url) {
       setState({ kind: "error", message: "Preview source is not available." });
       return;
     }
 
-    const reqId = ++reqIdRef.current;
     const controller = new AbortController();
     let objectUrl: string | undefined;
     setState({ kind: "loading" });
@@ -38,13 +39,12 @@ export function useBinarySource(url: string | null, objectMimeType?: string): Bi
       try {
         const res = await apiFetch(url, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const lengthHeader = res.headers.get("content-length");
-        if (lengthHeader && Number(lengthHeader) > MAX_BYTES) {
-          throw new Error(
-            "File is too large to preview. Use the Download button.",
-          );
-        }
-        const buffer = await res.arrayBuffer();
+        const buffer = await readPreviewBody(
+          res,
+          MAX_BYTES,
+          "File is too large to preview. Use the Download button.",
+          controller.signal,
+        );
         if (controller.signal.aborted || reqIdRef.current !== reqId) return; // superseded
         if (objectMimeType) objectUrl = URL.createObjectURL(new Blob([buffer], { type: objectMimeType }));
         setState({ kind: "ready", buffer, ...(objectUrl ? { objectUrl } : {}) });

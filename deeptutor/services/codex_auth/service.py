@@ -432,6 +432,7 @@ class CodexOAuthService:
         model_catalog: ModelCatalogService,
         *,
         oauth_client: CodexOAuthClient | None = None,
+        owned_http: httpx.AsyncClient | None = None,
         callback_factory: Callable[[str], Awaitable[Any]] | None = None,
         clock: Callable[[], float] = time.time,
         callback_forward_port: int = 3782,
@@ -446,9 +447,9 @@ class CodexOAuthService:
         self._catalog = catalog
         self._model_catalog = model_catalog
         self._callback_forward_port = callback_forward_port
-        self._owned_http: httpx.AsyncClient | None = None
+        self._owned_http = owned_http
         if oauth_client is None:
-            self._owned_http = httpx.AsyncClient(timeout=30, **codex_proxy_options())
+            self._owned_http = owned_http or httpx.AsyncClient(timeout=30, **codex_proxy_options())
             oauth_client = CodexOAuthClient(self._owned_http)
         self._oauth = oauth_client
         self._callback_factory = callback_factory or self._start_default_callback
@@ -461,6 +462,28 @@ class CodexOAuthService:
         self._inference_lock = asyncio.Lock()
         self._active_inferences = 0
         self._logging_out = False
+
+    async def aclose(self) -> None:
+        """Stop an in-flight login and close only the HTTP client we own.
+
+        Shutdown must not revoke or delete the user's persisted credentials.
+        Injected OAuth clients remain owned by their callers unless explicitly
+        supplied as ``owned_http`` by the service factory.
+        """
+        try:
+            async with self._operation_lock:
+                operation = self._operation
+                task = operation.task if operation is not None else None
+                if task is not None and not task.done():
+                    task.cancel()
+            if task is not None:
+                await asyncio.gather(task, return_exceptions=True)
+            if operation is not None:
+                await operation.callback.cancel()
+        finally:
+            client, self._owned_http = self._owned_http, None
+            if client is not None:
+                await client.aclose()
 
     @staticmethod
     async def _start_default_callback(expected_state: str) -> LoopbackCallback:
@@ -1292,10 +1315,23 @@ def get_codex_oauth_service() -> CodexOAuthService:
             catalog,
             _owner_model_catalog_service(),
             oauth_client=CodexOAuthClient(http),
+            owned_http=http,
             callback_forward_port=callback_forward_port,
         )
         _SERVICE_INSTANCES[key] = service
     return service
+
+
+async def close_codex_oauth_services() -> None:
+    """Drain the per-owner registry during application shutdown."""
+    services = list(_SERVICE_INSTANCES.values())
+    _SERVICE_INSTANCES.clear()
+    results = await asyncio.gather(
+        *(service.aclose() for service in services), return_exceptions=True
+    )
+    for result in results:
+        if isinstance(result, BaseException):
+            logger.warning("Failed to close a Codex client: %s", type(result).__name__)
 
 
 async def deliver_codex_oauth_callback(
@@ -1339,6 +1375,7 @@ __all__ = [
     "CatalogSyncResult",
     "CodexOAuthService",
     "codex_model_id",
+    "close_codex_oauth_services",
     "deliver_codex_oauth_callback",
     "get_codex_oauth_service",
     "reconcile_codex_catalog_update",

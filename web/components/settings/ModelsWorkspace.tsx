@@ -33,6 +33,7 @@ import { VoicePreviewPanel } from "./VoicePreviewPanel";
 import { ServicePreviewPanel } from "./ServicePreviewPanel";
 import { ModelTestPanel } from "./ModelTestPanel";
 import EmbeddingModelUsage from "./EmbeddingModelUsage";
+import { ModelSetupGuide } from "./ModelSetupGuide";
 import {
   EditableRegistryName,
   RegistryField,
@@ -119,6 +120,20 @@ export function ModelsWorkspace({
   const selectable = sources.filter(
     (source) => !("managed_by" in source.source && source.source.managed_by),
   );
+  const followedProviderLink = useRef(false);
+  useEffect(() => {
+    if (followedProviderLink.current || !catalogEditable) return;
+    const params = new URLSearchParams(window.location.search);
+    const preferred = params.get("provider");
+    if (params.get("add") !== "1" || !preferred) return;
+    const source = providerRegistry(draft).find((item) => item.id === preferred && !("managed_by" in item.source && item.source.managed_by));
+    if (!source || !providerServiceSupport(source, newService, connectionTargets, providers).enabled) return;
+    followedProviderLink.current = true;
+    setNewProvider(preferred);
+    setAdding(true);
+    requestAnimationFrame(() => scrollToSettingsElement(editorRef.current));
+    // Only initialize the explicit add intent once, after the draft is loaded.
+  }, [catalogEditable, draft, providers, connectionTargets, newService]);
   const start = () => {
     setAdding(true);
     revealDetail();
@@ -199,6 +214,7 @@ export function ModelsWorkspace({
   );
   return (
     <div className="space-y-5">
+      {page === "llm" && <ModelSetupGuide onAddModel={start} />}
       {!sources.length && (
         <div className="rounded-xl border border-[var(--border)] p-5 text-sm">
           <p>{t("Add a provider before adding models.")}</p>

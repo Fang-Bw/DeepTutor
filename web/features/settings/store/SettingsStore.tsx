@@ -757,8 +757,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const loadSettings = useCallback(async () => {
     setSettingsError(null);
     let settingsLoaded = false;
+    // Start independent reads together. Settle each rejection immediately so
+    // a fast diagnostics failure cannot become an unhandled rejection while
+    // the main settings request is pending. Apply live data before its draft.
+    const settle = <T,>(request: Promise<T>) => request.then(
+      (value) => ({ status: "fulfilled" as const, value }),
+      (reason: unknown) => ({ status: "rejected" as const, reason }),
+    );
+    const settingsRequest = settle(apiFetch(apiUrl("/api/settings")));
+    const draftRequest = settle(apiFetch(apiUrl("/api/settings/draft")));
+    const statusRequest = settle(apiFetch(apiUrl("/api/system/status")));
     try {
-      const settingsResponse = await apiFetch(apiUrl("/api/settings"));
+      const settingsResult = await settingsRequest;
+      if (settingsResult.status === "rejected") throw settingsResult.reason;
+      const settingsResponse = settingsResult.value;
       if (!settingsResponse.ok) {
         throw new Error(
           `Settings fetch failed: HTTP ${settingsResponse.status}`,
@@ -768,9 +780,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       if (payload.catalog) {
         setCatalog(payload.catalog);
         setDraft(cloneCatalog(payload.catalog));
-        setCatalogEditable(true);
-      } else {
-        setCatalogEditable(false);
       }
       setTheme(payload.ui.theme);
       setLanguage(payload.ui.language);
@@ -798,7 +807,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       // A draft parked in an earlier session takes over the editable copy —
       // otherwise "Save Draft" would look like it had done nothing at all.
       try {
-        const draftResponse = await apiFetch(apiUrl("/api/settings/draft"));
+        const draftResult = await draftRequest;
+        if (draftResult.status === "rejected") throw draftResult.reason;
+        const draftResponse = draftResult.value;
         if (draftResponse.ok) {
           const stored = (await draftResponse.json()) as {
             draft: StoredDraft | null;
@@ -837,6 +848,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         // No draft is the normal case and a failed read must not block the
         // page; the live settings above are already in hand.
       }
+      // Open the editor only after restoring the draft, so a delayed draft
+      // read cannot overwrite edits made during initial hydration.
+      setCatalogEditable(Boolean(payload.catalog));
       settingsLoaded = true;
     } catch (err) {
       console.error("Failed to load settings:", err);
@@ -847,7 +861,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setCatalogEditable((current) => (current === null ? false : current));
     }
     try {
-      const statusResponse = await apiFetch(apiUrl("/api/system/status"));
+      const statusResult = await statusRequest;
+      if (statusResult.status === "rejected") throw statusResult.reason;
+      const statusResponse = statusResult.value;
       if (statusResponse.ok) {
         setStatus((await statusResponse.json()) as SystemStatus);
       }

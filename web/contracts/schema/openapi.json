@@ -1755,6 +1755,17 @@
         "title": "ChatStarterSettingsUpdate",
         "type": "object"
       },
+      "CodexNetworkProbeRequest": {
+        "properties": {
+          "codex_proxy_url": {
+            "default": "",
+            "title": "Codex Proxy Url",
+            "type": "string"
+          }
+        },
+        "title": "CodexNetworkProbeRequest",
+        "type": "object"
+      },
       "CodexOAuthCallbackPayload": {
         "properties": {
           "callback_url": {
@@ -52376,6 +52387,83 @@
           }
         },
         "summary": "Update Network Settings",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/settings/network/codex-test": {
+      "post": {
+        "operationId": "test_codex_network_api_settings_network_codex_test_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "dt_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Dt Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodexNetworkProbeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Test Codex Network Api Settings Network Codex Test Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Codex Network",
         "tags": [
           "settings"
         ]

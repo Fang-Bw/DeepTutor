@@ -23,6 +23,7 @@ from .constants import (
     CODEX_TOKEN_URL,
 )
 from .contracts import CodexAuthError, CodexCredentials
+from .diagnostics import response_error, transport_error
 
 
 @dataclass(frozen=True)
@@ -342,24 +343,18 @@ class CodexOAuthClient:
                 data=data,
                 json=json_payload,
             )
-            if error_code == "token_refresh_failed" and response.status_code in {400, 401}:
-                try:
-                    rejection = response.json()
-                except ValueError:
-                    rejection = None
-                if isinstance(rejection, dict) and rejection.get("error") in {
-                    "invalid_grant",
-                    "invalid_token",
-                }:
-                    raise CodexAuthError(
-                        "token_refresh_rejected",
-                        "Codex sign-in could not be renewed. Sign in to Codex again.",
-                        401,
-                    )
+            if response.is_error:
+                diagnostic = response_error(
+                    response, refreshing=error_code == "token_refresh_failed"
+                )
+                if diagnostic is not None:
+                    raise diagnostic
             response.raise_for_status()
             payload = response.json()
             if not isinstance(payload, dict):
                 raise ValueError
             return payload
-        except (httpx.HTTPError, ValueError) as exc:
+        except httpx.RequestError as exc:
+            raise transport_error(exc) from exc
+        except (httpx.HTTPStatusError, ValueError) as exc:
             raise CodexAuthError(error_code, public_message, 502) from exc

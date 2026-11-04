@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { readPreviewBody } from "./readPreviewBody";
 
 const MAX_TEXT_BYTES = 8 * 1024 * 1024; // 8 MB — preview, not a download
 
@@ -11,8 +12,8 @@ export type TextSourceState =
   | { kind: "error"; message: string };
 
 /**
- * Fetch the text content at *url* (HEAD-checked for size to avoid pulling
- * a 50 MB log into memory). Aborts on unmount.
+ * Fetch text at *url*, limiting actual streamed bytes as well as checking
+ * Content-Length. Aborts on unmount or source change.
  *
  * If *fallbackText* is provided and the URL is empty/missing, we render
  * that text instead of fetching. This handles the office-doc case where
@@ -30,6 +31,7 @@ export function useTextSource(
   const reqIdRef = useRef(0);
 
   useEffect(() => {
+    const reqId = ++reqIdRef.current;
     // Inline fallback (no URL): nothing to fetch.
     if (!url) {
       if (fallbackText !== undefined) {
@@ -43,7 +45,6 @@ export function useTextSource(
       return;
     }
 
-    const reqId = ++reqIdRef.current;
     const controller = new AbortController();
     setState({ kind: "loading" });
 
@@ -53,14 +54,14 @@ export function useTextSource(
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
-        const lengthHeader = res.headers.get("content-length");
-        if (lengthHeader && Number(lengthHeader) > MAX_TEXT_BYTES) {
-          throw new Error(
-            "File is too large to preview as text. Use the Download button.",
-          );
-        }
-        const text = await res.text();
-        if (reqIdRef.current !== reqId) return; // superseded
+        const buffer = await readPreviewBody(
+          res,
+          MAX_TEXT_BYTES,
+          "File is too large to preview as text. Use the Download button.",
+          controller.signal,
+        );
+        if (controller.signal.aborted || reqIdRef.current !== reqId) return;
+        const text = new TextDecoder().decode(buffer);
         setState({ kind: "ready", text });
       } catch (err) {
         if (controller.signal.aborted) return;

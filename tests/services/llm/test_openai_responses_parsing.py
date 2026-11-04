@@ -6,8 +6,10 @@ from contextlib import contextmanager
 import json
 from types import SimpleNamespace
 
+import httpx
 import pytest
 
+from deeptutor.services.llm.exceptions import LLMProviderTransportError
 from deeptutor.services.llm.provider_core.openai_responses.parsing import (
     consume_sdk_stream,
     consume_sse,
@@ -28,6 +30,112 @@ class _SSEFixture:
 async def _sdk_events(events):
     for event in events:
         yield event
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("events", "partial_response"),
+    [
+        ([], False),
+        ([{"type": "response.created", "response": {"id": "resp_1"}}], False),
+        ([{"type": "response.output_text.delta", "delta": "unfinished"}], True),
+        (
+            [
+                {
+                    "type": "response.output_item.done",
+                    "item": {
+                        "type": "function_call",
+                        "id": "fc_1",
+                        "call_id": "call_1",
+                        "name": "lookup",
+                        "arguments": "{}",
+                    },
+                }
+            ],
+            True,
+        ),
+        ([{"type": "response.reasoning_summary_text.delta", "delta": "thinking"}], True),
+    ],
+)
+async def test_sse_eof_without_response_terminal_event_fails(
+    events: list[dict], partial_response: bool
+) -> None:
+    visible: list[str] = []
+
+    async def on_content_delta(delta: str) -> None:
+        visible.append(delta)
+
+    with pytest.raises(LLMProviderTransportError, match="before a terminal") as caught:
+        await consume_sse(_SSEFixture(events), on_content_delta)
+
+    assert caught.value.partial_response is partial_response
+    assert visible == [
+        event["delta"] for event in events if event["type"] == "response.output_text.delta"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sse_done_marker_does_not_replace_response_completed() -> None:
+    response = httpx.Response(200, content=b"data: [DONE]\n\n")
+
+    with pytest.raises(LLMProviderTransportError, match="before a terminal") as caught:
+        await consume_sse(response)
+
+    assert caught.value.partial_response is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_event", ['{"type":', "[]"])
+async def test_sse_malformed_event_does_not_silently_complete(bad_event: str) -> None:
+    response = httpx.Response(
+        200,
+        content=(
+            'data: {"type":"response.output_text.delta","delta":"part"}\n\n'
+            f"data: {bad_event}\n\n"
+            'data: {"type":"response.completed"}\n\n'
+        ).encode(),
+    )
+
+    with pytest.raises(LLMProviderTransportError, match="invalid event") as caught:
+        await consume_sse(response)
+
+    assert caught.value.partial_response is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("terminal_type", ["response.completed", "response.incomplete"])
+async def test_sse_terminal_event_does_not_wait_for_connection_to_close(
+    terminal_type: str,
+) -> None:
+    class Response:
+        async def aiter_lines(self):
+            yield 'data: {"type":"response.output_text.delta","delta":"answer"}'
+            yield ""
+            yield f'data: {{"type":"{terminal_type}"}}'
+            yield ""
+            raise AssertionError("A terminal response must end consumption")
+
+    content, _, finish_reason = await consume_sse(Response())
+
+    assert content == "answer"
+    assert finish_reason == ("length" if terminal_type == "response.incomplete" else "stop")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("partial_response", [False, True])
+async def test_sse_transport_failure_preserves_partial_output(partial_response: bool) -> None:
+    class Response:
+        async def aiter_lines(self):
+            if partial_response:
+                yield 'data: {"type":"response.output_text.delta","delta":"answer"}'
+                yield ""
+            raise httpx.ReadError("private-proxy-secret")
+
+    with pytest.raises(LLMProviderTransportError, match="transport failed") as caught:
+        await consume_sse(Response())
+
+    assert caught.value.partial_response is partial_response
+    assert "private-proxy-secret" not in str(caught.value)
 
 
 @pytest.mark.asyncio
@@ -65,6 +173,7 @@ async def test_sse_arguments_can_be_correlated_by_item_id() -> None:
         ]
     )
 
+    response._events.append({"type": "response.completed"})
     _, tool_calls, _ = await consume_sse(response)  # type: ignore[arg-type]
 
     assert len(tool_calls) == 1
@@ -331,6 +440,7 @@ async def test_argument_deltas_are_preserved_without_a_done_event(consumer: str)
     ]
 
     if consumer == "sse":
+        events.append({"type": "response.completed"})
         _, tool_calls, _ = await consume_sse(_SSEFixture(events))
     else:
         sdk_events = [
@@ -411,6 +521,7 @@ async def test_a_call_without_an_item_id_does_not_inherit_another_calls_identity
         },
     ]
 
+    events.append({"type": "response.completed"})
     _, tool_calls, _ = await consume_sse(_SSEFixture(events))
 
     assert [(call.name, call.arguments) for call in tool_calls] == [
@@ -459,6 +570,7 @@ async def test_sse_reports_arguments_as_they_stream() -> None:
     async def _on_tool_args_delta(call_id: str, name: str, arguments: str) -> None:
         seen.append((call_id, name, arguments))
 
+    response._events.append({"type": "response.completed"})
     _, tool_calls, _ = await consume_sse(
         response,
         on_tool_args_delta=_on_tool_args_delta,
@@ -528,6 +640,7 @@ async def test_unnamed_call_is_not_previewed() -> None:
     async def _on_tool_args_delta(call_id: str, name: str, arguments: str) -> None:
         seen.append(arguments)
 
+    response._events.append({"type": "response.completed"})
     await consume_sse(response, on_tool_args_delta=_on_tool_args_delta)
 
     assert seen == []

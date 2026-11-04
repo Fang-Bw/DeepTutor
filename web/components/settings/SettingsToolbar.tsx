@@ -70,6 +70,7 @@ export function SettingsToolbar() {
             </button>
           </Tooltip>
           <button
+            id="settings-apply-changes"
             type="button"
             onClick={applyCatalog}
             disabled={busy}

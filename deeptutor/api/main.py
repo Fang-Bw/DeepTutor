@@ -389,6 +389,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to close agentic LLM client pool: {e}")
 
+    try:
+        from deeptutor.services.codex_auth import close_codex_oauth_services
+
+        await close_codex_oauth_services()
+        logger.info("Codex OAuth clients closed")
+    except Exception as e:
+        logger.warning("Failed to close Codex OAuth clients: %s", type(e).__name__)
+
     # Stop EventBus
     try:
         from deeptutor.events.event_bus import get_event_bus
